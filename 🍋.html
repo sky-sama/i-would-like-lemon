@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>柠檬增量</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f0f0f;
+    color: #fff;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  
+  .header {
+    text-align: center;
+    margin-top: 40px;
+    margin-bottom: 20px;
+  }
+  
+  .lemon-icon {
+    font-size: 4em;
+    margin-bottom: 10px;
+    animation: float 3s ease-in-out infinite;
+    display: inline-block;
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  .counter {
+    font-size: 4em;
+    font-weight: 700;
+    color: #ffeb3b;
+    text-shadow: 0 0 20px rgba(255, 235, 59, 0.3);
+    font-variant-numeric: tabular-nums;
+    min-height: 1.2em;
+  }
+  
+  .lps-display {
+    font-size: 1.3em;
+    color: #ffc107;
+    margin-top: 8px;
+    opacity: 0.9;
+  }
+  
+  .shop {
+    display: flex;
+    gap: 20px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 1200px;
+    width: 100%;
+    padding: 0 20px;
+  }
+  
+  .card {
+    background: #1a1a1a;
+    border: 2px solid #333;
+    border-radius: 16px;
+    padding: 24px;
+    width: 260px;
+    transition: border-color 0.2s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: #ffeb3b;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+  }
+  
+  .card:hover::before {
+    opacity: 1;
+  }
+  
+  .card:hover {
+    border-color: #555;
+    transform: translateY(-2px);
+  }
+  
+  .card-title {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: #ffeb3b;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .card-level {
+    display: inline-block;
+    background: #ffeb3b;
+    color: #000;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  
+  .card-info {
+    font-size: 0.9em;
+    color: #aaa;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    min-height: 4.8em;
+  }
+  
+  .card-info .highlight {
+    color: #fff;
+    font-weight: 600;
+  }
+  
+  .price-tag {
+    font-size: 1.1em;
+    color: #ffc107;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  
+  .buy-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #4caf50;
+    color: #fff;
+    font-size: 1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .buy-btn:hover:not(:disabled) {
+    background: #66bb6a;
+    transform: scale(1.02);
+  }
+  
+  .buy-btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  
+  .buy-btn:disabled {
+    background: #333;
+    color: #666;
+    cursor: not-allowed;
+  }
+  
+  .flash {
+    animation: flash-anim 0.15s ease-out;
+  }
+  
+  @keyframes flash-anim {
+    0% { transform: scale(1.1); color: #fff; }
+    100% { transform: scale(1); color: #ffeb3b; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="lemon-icon">🍋</div>
+  <div class="counter" id="lemons">10</div>
+  <div class="lps-display" id="lps">0 柠檬/秒</div>
+</div>
+
+<div class="shop">
+  <div class="card" id="card-tree">
+    <div class="card-title">柠檬树 <span class="card-level" id="lvl-tree">Lv.0</span></div>
+    <div class="card-info">
+      每棵树每 <span class="highlight">0.1</span> 秒产 1 个柠檬<br>
+      当前拥有: <span class="highlight" id="count-tree">0</span> 棵<br>
+    </div>
+    <div class="price-tag" id="price-tree">价格: 10 柠檬</div>
+    <button class="buy-btn" id="btn-tree" onclick="buyTree()">种植</button>
+  </div>
+
+  <div class="card" id="card-eug">
+    <div class="card-title">优生 <span class="card-level" id="lvl-eug">Lv.0</span></div>
+    <div class="card-info">
+      每层使柠檬树速率 <span class="highlight">+10%</span><br>
+      当前倍率: <span class="highlight" id="mult-eug">100%</span><br>
+    </div>
+    <div class="price-tag" id="price-eug">价格: 100 柠檬</div>
+    <button class="buy-btn" id="btn-eug" onclick="buyEugenics()">升级</button>
+  </div>
+
+  <div class="card" id="card-juice">
+    <div class="card-title">柠檬榨汁 <span class="card-level" id="lvl-juice">Lv.0</span></div>
+    <div class="card-info">
+      每层使最终获取量 <span class="highlight">×1.1</span><br>
+      当前倍率: <span class="highlight" id="mult-juice">×1.00</span><br>
+    </div>
+    <div class="price-tag" id="price-juice">价格: 100 柠檬</div>
+    <button class="buy-btn" id="btn-juice" onclick="buyJuice()">榨汁</button>
+  </div>
+
+  <div class="card" id="card-planter">
+    <div class="card-title">自动种树机 <span class="card-level" id="lvl-planter">Lv.0</span></div>
+    <div class="card-info">
+      每台每秒自动购买 <span class="highlight">1</span> 棵树<br>
+      当前拥有: <span class="highlight" id="count-planter">0</span> 台<br>
+    </div>
+    <div class="price-tag" id="price-planter">价格: 1,000 柠檬</div>
+    <button class="buy-btn" id="btn-planter" onclick="buyPlanter()">购置</button>
+  </div>
+
+  <div class="card" id="card-auto-eug">
+    <div class="card-title">自动优生 <span class="card-level" id="lvl-auto-eug">Lv.0</span></div>
+    <div class="card-info">
+      每层每秒自动购买 <span class="highlight">1</span> 层优生<br>
+      当前拥有: <span class="highlight" id="count-auto-eug">0</span> 层<br>
+    </div>
+    <div class="price-tag" id="price-auto-eug">价格: 10,000 柠檬</div>
+    <button class="buy-btn" id="btn-auto-eug" onclick="buyAutoEugenics()">购置</button>
+  </div>
+</div>
+
+<div class="stats">
+  纯增量 | 大数字自动切换科学计数法 | 批量二分购买优化<br>
+  当数值突破 1.8×10³⁰⁸ 时将显示 ∞
+</div>
+
+<script>
+// ==================== 游戏状态 ====================
+let lemons = 10;
+let trees = 0;
+let eugenics = 0;
+let juice = 0;
+let planters = 0;
+let autoEugenicsCount = 0;
+let planterProgress = 0;
+let autoEugProgress = 0;
+let lastTime = performance.now();
+
+// ==================== 格式化 ====================
+function formatNumber(n) {
+  if (!isFinite(n)) return '∞';
+  if (n < 0) return '-' + formatNumber(-n);
+  let intPart = Math.floor(n);
+  if (intPart < 1000000000) {
+    return intPart.toLocaleString('en-US');
+  }
+  return n.toExponential(10);
+}
+
+// ==================== 价格计算 ====================
+function getTreePrice() { return (trees + 1) * 10; }
+function getEugenicsPrice() { return (eugenics + 1) * 100; }
+function getJuicePrice() { return 100 * Math.pow(2, juice); }
+function getPlanterPrice() { return 1000 * (planters + 1) * (planters + 1); }
+function getAutoEugPrice() { return 10000 * (autoEugenicsCount + 1) * (autoEugenicsCount + 1); }
+
+// ==================== 核心公式 ====================
+function getEugenicsMult() { return 1 + eugenics * 0.1; }
+function getJuiceMult() { return Math.pow(1.1, juice); }
+function getLPS() {
+  if (trees <= 0) return 0;
+  return (trees / 0.1) * getEugenicsMult() * getJuiceMult();
+}
+
+// ==================== 二分法批量购买（线性价格） ====================
+// basePrice: 单价基数, currentCount: 当前拥有量, money: 可用钱, maxBuy: 最大购买数量
+// 买 k 个总价 = basePrice * (k * currentCount + k*(k+1)/2)
+function bulkBuy(basePrice, currentCount, money, maxBuy) {
+  let low = 0, high = maxBuy;
+  while (low < high) {
+    let mid = Math.ceil((low + high) / 2);
+    let cost = basePrice * (mid * currentCount + mid * (mid + 1) / 2);
+    if (cost <= money) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  if (low > 0) {
+    let cost = basePrice * (low * currentCount + low * (low + 1) / 2);
+    return { bought: low, cost: cost };
+  }
+  return { bought: 0, cost: 0 };
+}
+
+// ==================== 购买逻辑 ====================
+function buyTree() {
+  let price = getTreePrice();
+  if (lemons >= price) {
+    lemons -= price;
+    trees++;
+    flashCounter();
+    updateUI();
+  }
+}
+
+function buyEugenics() {
+  let price = getEugenicsPrice();
+  if (lemons >= price) {
+    lemons -= price;
+    eugenics++;
+    flashCounter();
+    updateUI();
+  }
+}
+
+function buyJuice() {
+  let price = getJuicePrice();
+  if (lemons >= price) {
+    lemons -= price;
+    juice++;
+    flashCounter();
+    updateUI();
+  }
+}
+
+function buyPlanter() {
+  let price = getPlanterPrice();
+  if (lemons >= price) {
+    lemons -= price;
+    planters++;
+    flashCounter();
+    updateUI();
+  }
+}
+
+function buyAutoEugenics() {
+  let price = getAutoEugPrice();
+  if (lemons >= price) {
+    lemons -= price;
+    autoEugenicsCount++;
+    flashCounter();
+    updateUI();
+  }
+}
+
+// ==================== 视觉反馈 ====================
+function flashCounter() {
+  const el = document.getElementById('lemons');
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+// ==================== 主循环 ====================
+function gameLoop(now) {
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if (dt > 1) dt = 1;
+  
+  // 柠檬产出
+  let lps = getLPS();
+  lemons += lps * dt;
+  
+  // 自动种树机：累加进度，取出整数张票券，本帧全部处理（买或浪费）
+  if (planters > 0) {
+    planterProgress += planters * dt;
+    let tickets = Math.floor(planterProgress);
+    if (tickets > 0) {
+      let result = bulkBuy(10, trees, lemons, tickets);
+      if (result.bought > 0) {
+        lemons -= result.cost;
+        trees += result.bought;
+      }
+      // 无论是否买到，整数票券全部消耗，不累计到下一帧
+      planterProgress -= tickets;
+    }
+  }
+  
+  // 自动优生机：逻辑同上
+  if (autoEugenicsCount > 0) {
+    autoEugProgress += autoEugenicsCount * dt;
+    let tickets = Math.floor(autoEugProgress);
+    if (tickets > 0) {
+      let result = bulkBuy(100, eugenics, lemons, tickets);
+      if (result.bought > 0) {
+        lemons -= result.cost;
+        eugenics += result.bought;
+      }
+      autoEugProgress -= tickets;
+    }
+  }
+  
+  updateUI();
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== UI 更新 ====================
+function updateUI() {
+  document.getElementById('lemons').textContent = formatNumber(lemons);
+  document.getElementById('lps').textContent = formatNumber(getLPS()) + ' 柠檬/秒';
+  
+  // 柠檬树
+  document.getElementById('lvl-tree').textContent = 'Lv.' + trees;
+  document.getElementById('count-tree').textContent = trees;
+  let treePrice = getTreePrice();
+  document.getElementById('price-tree').textContent = '价格: ' + formatNumber(treePrice) + ' 柠檬';
+  document.getElementById('btn-tree').disabled = lemons < treePrice;
+  
+  // 优生
+  document.getElementById('lvl-eug').textContent = 'Lv.' + eugenics;
+  let eugPct = ((getEugenicsMult() - 1) * 100).toFixed(0);
+  document.getElementById('mult-eug').textContent = (100 + parseInt(eugPct)) + '%';
+  let eugPrice = getEugenicsPrice();
+  document.getElementById('price-eug').textContent = '价格: ' + formatNumber(eugPrice) + ' 柠檬';
+  document.getElementById('btn-eug').disabled = lemons < eugPrice;
+  
+  // 榨汁
+  document.getElementById('lvl-juice').textContent = 'Lv.' + juice;
+  document.getElementById('mult-juice').textContent = '×' + getJuiceMult().toFixed(2);
+  let juicePrice = getJuicePrice();
+  document.getElementById('price-juice').textContent = '价格: ' + formatNumber(juicePrice) + ' 柠檬';
+  document.getElementById('btn-juice').disabled = lemons < juicePrice;
+  
+  // 自动种树机
+  document.getElementById('lvl-planter').textContent = 'Lv.' + planters;
+  document.getElementById('count-planter').textContent = planters;
+  let planterPrice = getPlanterPrice();
+  document.getElementById('price-planter').textContent = '价格: ' + formatNumber(planterPrice) + ' 柠檬';
+  document.getElementById('btn-planter').disabled = lemons < planterPrice;
+  
+  // 自动优生
+  document.getElementById('lvl-auto-eug').textContent = 'Lv.' + autoEugenicsCount;
+  document.getElementById('count-auto-eug').textContent = autoEugenicsCount;
+  let autoEugPrice = getAutoEugPrice();
+  document.getElementById('price-auto-eug').textContent = '价格: ' + formatNumber(autoEugPrice) + ' 柠檬';
+  document.getElementById('btn-auto-eug').disabled = lemons < autoEugPrice;
+}
+
+// ==================== 启动 ====================
+requestAnimationFrame(gameLoop);
+updateUI();
+</script>
+
+</body>
+</html>
