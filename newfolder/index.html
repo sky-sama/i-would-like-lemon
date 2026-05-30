@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新建文件夹</title>
+  <style>
+    :root {
+      --bg: #0f0f1a;
+      --panel: #1a1a2e;
+      --card-bg: #16213e;
+      --card-hover: #1f3066;
+      --accent: #e94560;
+      --p1-color: #4fbdba;
+      --p2-color: #f2a365;
+      --text: #eaeaea;
+      --border: #2a2a4a;
+      --playable: #2ecc71;
+      --selected: #f1c40f;
+      --keyword: #9b59b6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    #setup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 20px;
+      padding: 20px;
+    }
+
+    #setup h1 {
+      font-size: 2.5rem;
+      color: var(--accent);
+      text-align: center;
+    }
+
+    #setup p {
+      text-align: center;
+      max-width: 600px;
+      line-height: 1.6;
+      opacity: 0.8;
+    }
+
+    #setup .btn-group {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    #setup button,
+    #setup label {
+      padding: 12px 32px;
+      font-size: 1.1rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.2s;
+      display: inline-block;
+    }
+
+    #setup button:hover,
+    #setup label:hover {
+      transform: scale(1.05);
+      background: #ff6b81;
+    }
+
+    #setup label input {
+      display: none;
+    }
+
+    #setup .file-hint {
+      font-size: 0.85rem;
+      opacity: 0.6;
+      margin-top: -8px;
+    }
+
+    #setup .deck-preview {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      max-width: 500px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 0.85rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    #game {
+      display: grid;
+      grid-template-columns: 1fr 340px 1fr;
+      gap: 12px;
+      height: 100vh;
+      padding: 10px;
+      display: none;
+    }
+
+    .player-panel {
+      background: var(--panel);
+      border-radius: 12px;
+      border: 2px solid var(--border);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.3s;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .player-panel.active-turn {
+      border-color: var(--accent);
+      box-shadow: 0 0 15px rgba(233, 69, 96, 0.3);
+    }
+
+    .player-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .player-header h2 {
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .turn-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .active-turn .turn-dot {
+      opacity: 1;
+    }
+
+    .stats {
+      display: flex;
+      gap: 10px;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .stat-box {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      flex: 1;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+
+    .stat-value {
+      font-size: 1rem;
+      font-weight: bold;
+    }
+
+    .zones {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .zone-pile {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px;
+      text-align: center;
+      min-width: 70px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .zone-pile:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .zone-pile .zone-name {
+      font-size: 0.75rem;
+      opacity: 0.8;
+    }
+
+    .zone-pile .zone-count {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: var(--accent);
+    }
+
+    .area-label {
+      font-size: 0.75rem;
+      opacity: 0.6;
+      margin-top: 2px;
+      margin-bottom: 2px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .field-area {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 6px;
+      min-height: 100px;
+      max-height: 120px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+
+    .field-area:empty::after {
+      content: "无场地牌";
+      opacity: 0.3;
+      font-size: 0.85rem;
+      width: 100%;
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .hand-area {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 6px;
+      min-height: 120px;
+      max-height: 140px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+
+    .hand-area:empty::after {
+      content: "无手牌";
+      opacity: 0.3;
+      font-size: 0.85rem;
+      width: 100%;
+      text-align: center;
+      margin-top: 40px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      width: 90px;
+      min-width: 90px;
+      height: 120px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      user-select: none;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      background: var(--card-hover);
+      border-color: #4a6fa5;
+    }
+
+    .card.playable {
+      border-color: var(--playable);
+      box-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
+    }
+
+    .card.selected {
+      border-color: var(--selected);
+      box-shadow: 0 0 12px rgba(241, 196, 15, 0.4);
+      transform: translateY(-6px);
+    }
+
+    .card.unusable {
+      opacity: 0.6;
+    }
+
+    .card-name {
+      font-weight: bold;
+      font-size: 0.9rem;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .card-value {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      gap: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .value-tag {
+      background: #3498db;
+      color: white;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+    }
+
+    .card-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      justify-content: center;
+    }
+
+    .keyword-tag {
+      background: var(--keyword);
+      color: white;
+      font-size: 0.6rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    .card-desc {
+      font-size: 0.7rem;
+      opacity: 0.8;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .center-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .game-info {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 10px;
+      text-align: center;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .game-info h2 {
+      font-size: 1.2rem;
+      margin-bottom: 4px;
+    }
+
+    .game-info p {
+      opacity: 0.8;
+      font-size: 0.9rem;
+    }
+
+    .log-area {
+      flex: 1;
+      min-height: 0;
+      background: var(--panel);
+      border-radius: 12px;
+      border: 2px solid var(--border);
+      padding: 10px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .log-entry {
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .log-entry.system {
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .log-entry.damage {
+      color: #e74c3c;
+    }
+
+    .log-entry.heal {
+      color: #2ecc71;
+    }
+
+    .log-entry.mp {
+      color: #3498db;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .controls button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+
+    #end-turn-btn {
+      background: var(--accent);
+      color: white;
+      font-weight: bold;
+    }
+
+    #end-turn-btn:hover:not(:disabled) {
+      background: #ff6b81;
+    }
+
+    #end-turn-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .card-detail {
+      background: var(--panel);
+      border-radius: 12px;
+      border: 2px solid var(--border);
+      padding: 10px;
+      min-height: 100px;
+      max-height: 180px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .card-detail h3 {
+      color: var(--accent);
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+
+    .card-detail .detail-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 3px 0;
+      font-size: 0.85rem;
+    }
+
+    .card-detail button {
+      margin-top: 6px;
+      width: 100%;
+      padding: 8px;
+      background: var(--playable);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+
+    .card-detail button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal {
+      background: var(--panel);
+      border: 2px solid var(--accent);
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      max-width: 400px;
+    }
+
+    .modal h2 {
+      color: var(--accent);
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+
+    .modal button {
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    @media (max-width: 900px) {
+      #game {
+        grid-template-columns: 1fr 280px 1fr;
+        gap: 8px;
+        padding: 6px;
+      }
+
+      .card {
+        width: 80px;
+        min-width: 80px;
+        height: 110px;
+      }
+
+      .card-name {
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 700px) {
+      #game {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          "p1 p2"
+          "center center";
+        overflow-y: auto;
+        height: auto;
+        min-height: 100vh;
+      }
+
+      #p1-panel {
+        grid-area: p1;
+      }
+
+      #p2-panel {
+        grid-area: p2;
+      }
+
+      .center-panel {
+        grid-area: center;
+      }
+
+      .hand-area,
+      .field-area {
+        flex-wrap: wrap;
+        overflow-x: hidden;
+        overflow-y: auto;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="setup">
+    <h1>卡牌对战</h1>
+    <p>完整规则引擎 | 双人对战 | 字段与能力系统<br>支持从 JSON 文件加载自定义牌组</p>
+    <div class="btn-group">
+      <button onclick="startGame()">使用默认牌组开始</button>
+      <label>
+        <input type="file" id="deck-file" accept=".json" onchange="loadDeckFromFile(event)">
+        加载牌组文件
+      </label>
+      <button onclick="downloadExampleDeck()">下载示例牌组</button>
+    </div>
+    <p class="file-hint">牌组为 JSON 格式，包含字段定义、能力定义、角色初始字段、卡牌列表</p>
+    <div id="deck-preview" class="deck-preview" style="display:none;"></div>
+  </div>
+
+  <div id="game">
+    <!-- 玩家1 -->
+    <div class="player-panel" id="p1-panel">
+      <div class="player-header">
+        <h2>玩家1 <span class="turn-dot" id="p1-dot"></span></h2>
+      </div>
+      <div class="stats" id="p1-stats"></div>
+      <div class="zones">
+        <div class="zone-pile" onclick="ui.viewZone(game.player1, 'deck')">
+          <div class="zone-name">抽牌堆</div>
+          <div class="zone-count" id="p1-deck-count">0</div>
+        </div>
+        <div class="zone-pile" onclick="ui.viewZone(game.player1, 'discard')">
+          <div class="zone-name">弃牌堆</div>
+          <div class="zone-count" id="p1-discard-count">0</div>
+        </div>
+        <div class="zone-pile" onclick="ui.viewZone(game.player1, 'banished')">
+          <div class="zone-name">除外堆</div>
+          <div class="zone-count" id="p1-banished-count">0</div>
+        </div>
+      </div>
+      <div class="area-label">场地</div>
+      <div class="field-area" id="p1-field"></div>
+      <div class="area-label">手牌</div>
+      <div class="hand-area" id="p1-hand"></div>
+    </div>
+
+    <!-- 中间 -->
+    <div class="center-panel">
+      <div class="game-info">
+        <h2>第 <span id="turn-count">1</span> 回合</h2>
+        <p id="current-player">当前行动: 玩家1</p>
+      </div>
+      <div class="log-area" id="log"></div>
+      <div class="controls">
+        <button id="end-turn-btn" onclick="game.endTurn()">结束回合</button>
+      </div>
+      <div class="card-detail" id="card-detail">
+        <p style="opacity:0.6;text-align:center;margin-top:30px;">点击手牌查看详情</p>
+      </div>
+    </div>
+
+    <!-- 玩家2 -->
+    <div class="player-panel" id="p2-panel">
+      <div class="player-header">
+        <h2>玩家2 <span class="turn-dot" id="p2-dot"></span></h2>
+      </div>
+      <div class="stats" id="p2-stats"></div>
+      <div class="zones">
+        <div class="zone-pile" onclick="ui.viewZone(game.player2, 'deck')">
+          <div class="zone-name">抽牌堆</div>
+          <div class="zone-count" id="p2-deck-count">0</div>
+        </div>
+        <div class="zone-pile" onclick="ui.viewZone(game.player2, 'discard')">
+          <div class="zone-name">弃牌堆</div>
+          <div class="zone-count" id="p2-discard-count">0</div>
+        </div>
+        <div class="zone-pile" onclick="ui.viewZone(game.player2, 'banished')">
+          <div class="zone-name">除外堆</div>
+          <div class="zone-count" id="p2-banished-count">0</div>
+        </div>
+      </div>
+      <div class="area-label">场地</div>
+      <div class="field-area" id="p2-field"></div>
+      <div class="area-label">手牌</div>
+      <div class="hand-area" id="p2-hand"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ==================== 工具函数 ==================== */
+    function generateId() {
+      return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    }
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    /* ==================== 核心类定义 ==================== */
+
+    class CardDefinition {
+      constructor(def) {
+        this.name = def.name;
+        this.condition = def.condition || (() => true);
+        this.abilities = def.abilities || [];
+        this.description = def.description || '';
+        this.staticFields = {};
+        for (const f of (def.fields || [])) {
+          if (f.type === 'keyword') {
+            this.staticFields[f.name] = { type: 'keyword', value: true };
+          } else if (f.type === 'value') {
+            this.staticFields[f.name] = {
+              type: 'value',
+              value: f.value !== undefined ? f.value : 0,
+              max: f.max !== undefined ? f.max : null,
+              min: f.min !== undefined ? f.min : null
+            };
+          }
+        }
+      }
+
+      getCost() {
+        return this.staticFields['cost']?.value ?? 0;
+      }
+
+      hasCost() {
+        return 'cost' in this.staticFields;
+      }
+
+      getStaticValue(name) {
+        return this.staticFields[name]?.value ?? 0;
+      }
+
+      setStaticValue(name, val) {
+        const f = this.staticFields[name];
+        if (!f || f.type !== 'value') return;
+        f.value = val;
+        if (f.max !== null && f.value > f.max) f.value = f.max;
+        if (f.min !== null && f.value < f.min) f.value = f.min;
+      }
+
+      modifyStaticValue(name, delta) {
+        const f = this.staticFields[name];
+        if (!f || f.type !== 'value') return;
+        this.setStaticValue(name, Math.max(Math.min(f.value + delta, Math.max(f.value, f.max || Infinity)), Math.min(f.value, f.min || -Infinity)));
+      }
+
+      hasKeyword(name) {
+        return !!this.staticFields[name]?.value;
+      }
+    }
+
+    class CardInstance {
+      constructor(definition, owner) {
+        this.id = generateId();
+        this.definition = definition;
+        this.owner = owner;
+        this.zone = 'deck';
+        this.counters = {};
+      }
+
+      getCounter(name, effectId) {
+        return this.counters[name]?.[effectId] || 0;
+      }
+
+      setCounter(name, effectId, value) {
+        if (!this.counters[name]) this.counters[name] = {};
+        this.counters[name][effectId] = Math.max(0, value);
+      }
+
+      modifyCounter(name, effectId, delta) {
+        const cur = this.getCounter(name, effectId);
+        this.setCounter(name, effectId, cur + delta);
+      }
+
+      getCounterSum(name) {
+        const map = this.counters[name];
+        if (!map) return 0;
+        return Object.values(map).reduce((a, b) => a + b, 0);
+      }
+    }
+
+    class AbilityContext {
+      constructor(game, event, player, target, card, data = {}) {
+        this.game = game;
+        this.event = event;
+        this.player = player;
+        this.target = target;
+        this.card = card;
+        this.data = data;
+        this.prevented = false;
+        this.preventReason = '';
+      }
+
+      preventDefault(reason = '') {
+        this.prevented = true;
+        this.preventReason = reason;
+      }
+
+      getField(owner, name, type, id) {
+        if (owner instanceof Player) {
+          if (type === 'keyword') return !!owner.fields[name]?.value;
+          if (type === 'value') return owner.fields[name]?.value ?? 0;
+          if (type === 'counter') return owner.getCounter(name, id);
+        } else if (owner instanceof CardInstance) {
+          if (type === 'keyword') return owner.definition.hasKeyword(name);
+          if (type === 'value') return owner.definition.getStaticValue(name);
+          if (type === 'counter') return owner.getCounter(name, id);
+        }
+        return 0;
+      }
+
+      setField(owner, name, value, type, id) {
+        if (owner instanceof Player) {
+          if (type === 'value') owner.setFieldValue(name, value);
+          if (type === 'keyword') owner.setKeyword(name, !!value);
+          if (type === 'counter') owner.setCounter(name, id, value);
+        } else if (owner instanceof CardInstance) {
+          if (type === 'value') owner.definition.setStaticValue(name, value);
+          if (type === 'counter') owner.setCounter(name, id, value);
+        }
+      }
+
+      modifyField(owner, name, delta, type, id) {
+        if (owner instanceof Player) {
+          if (type === 'value') owner.modifyFieldValue(name, delta);
+          if (type === 'counter') owner.modifyCounter(name, id, delta);
+        } else if (owner instanceof CardInstance) {
+          if (type === 'value') owner.definition.modifyStaticValue(name, delta);
+          if (type === 'counter') owner.modifyCounter(name, id, delta);
+        }
+      }
+    }
+
+    class Player {
+      constructor(id, name, deckDef) {
+        this.id = id;
+        this.name = name;
+        this.fieldDefinitions = {}; // 字段定义（类型、上下限）
+        this.fields = {}; // 实际绑定的字段（含当前值）
+        this.deck = [];
+        this.hand = [];
+        this.field = [];
+        this.discard = [];
+        this.banished = [];
+        this.opponent = null;
+
+        this.initFields(deckDef.fieldDefinitions || {}, deckDef.playerBindings || {});
+        this.initDeck(deckDef.cards || []);
+      }
+
+      initFields(fieldDefinitions, playerBindings) {
+        this.fieldDefinitions = fieldDefinitions || {};
+        for (const [name, value] of Object.entries(playerBindings || {})) {
+          const def = this.fieldDefinitions[name];
+          if (def) {
+            this.fields[name] = {
+              type: def.type,
+              value: def.type === 'keyword' ? !!value : (typeof value === 'number' ? value : 0),
+              max: def.max !== undefined ? def.max : null,
+              min: def.min !== undefined ? def.min : (def.type === 'value' ? 0 : null)
+            };
+          } else {
+            // 未在 fieldDefinitions 中定义类型，默认创建为无上下限的 value
+            this.fields[name] = {
+              type: 'value',
+              value: typeof value === 'number' ? value : 0,
+              max: null,
+              min: 0
+            };
+          }
+        }
+      }
+
+      ensureFieldExists(name) {
+        if (this.fields[name]) return;
+        const def = this.fieldDefinitions[name];
+        if (def) {
+          if (def.type === 'counter') {
+            this.fields[name] = {
+              type: 'counter',
+              values: {} // {effectId: value}
+            };
+          } else {
+            this.fields[name] = {
+              type: def.type,
+              value: def.type === 'keyword' ? false : 0,
+              max: def.max !== undefined ? def.max : null,
+              min: def.min !== undefined ? def.min : (def.type === 'value' ? 0 : null)
+            };
+          }
+        } else {
+          this.fields[name] = {
+            type: 'value',
+            value: 0,
+            max: null,
+            min: 0
+          };
+        }
+      }
+
+      removeField(name) {
+        delete this.fields[name];
+      }
+
+      getCounter(name, effectId) {
+        const f = this.fields[name];
+        if (!f || f.type !== 'counter') return 0;
+        return f.values?.[effectId] || 0;
+      }
+
+      setCounter(name, effectId, value) {
+        this.ensureFieldExists(name);
+        const f = this.fields[name];
+        if (f.type !== 'counter') return;
+        if (!f.values) f.values = {};
+        f.values[effectId] = Math.max(0, value);
+      }
+
+      removeCounter(name, effectId) {
+        const f = this.fields[name];
+        if (!f || f.type !== 'counter') return;
+        delete f.values[effectId];
+        if (!this.fields[name]) removeField(name);
+      }
+
+      modifyCounter(name, effectId, delta) {
+        const cur = this.getCounter(name, effectId);
+        this.setCounter(name, effectId, cur + delta);
+      }
+
+      getCounterSum(name) {
+        const f = this.fields[name];
+        if (!f || f.type !== 'counter') return 0;
+        return Object.values(f.values || {}).reduce((a, b) => a + b, 0);
+      }
+
+      initDeck(cardDefs) {
+        for (const def of cardDefs) {
+          const cardDef = new CardDefinition(def);
+          for (let i = 0; i < (def.quantity); i++) {
+            this.deck.push(new CardInstance(cardDef, this));
+          }
+        }
+      }
+
+      getFieldValue(name) {
+        const f = this.fields[name];
+        if (!f) return 0;
+        if (f.type === 'keyword') return !!f.value ? 1 : 0;
+        if (f.type === 'value') return f.value;
+        if (f.type === 'counter') return this.getCounterSum(name);
+        return 0;
+      }
+
+      setFieldValue(name, value) {
+        this.ensureFieldExists(name);
+        const f = this.fields[name];
+        const old = f.value;
+        if (f.type === 'keyword') {
+          f.value = !!value;
+        } else if (f.type === 'value') {
+          f.value = value;
+        }
+        if (old !== f.value) {
+          this.game?.emit(`${name}_change`, new AbilityContext(this.game, `${name}_change`, null, this, null, { old, new: f.value }));
+        }
+      }
+
+      modifyFieldValue(name, delta) {
+        if (delta === 0) return;
+        this.ensureFieldExists(name);
+        const f = this.fields[name];
+        if (f.type !== 'value') return;
+        this.setFieldValue(name, Math.max(Math.min(f.value + delta, Math.max(f.value, f.max || Infinity)), Math.min(f.value, f.min || -Infinity)));
+      }
+
+      setKeyword(name, val) {
+        this.ensureFieldExists(name);
+        const f = this.fields[name];
+        if (f && f.type === 'keyword') f.value = !!val;
+      }
+
+      hasKeyword(name) {
+        const f = this.fields[name];
+        return !!(f && f.type === 'keyword' && f.value);
+      }
+
+      hasField(name) {
+        return !!this.fields[name];
+      }
+
+      shuffleDeck() {
+        shuffleArray(this.deck);
+      }
+
+      draw(count) {
+        for (let i = 0; i < count; i++) {
+          if (this.deck.length === 0 && this.discard.length > 0) {
+            this.game.emit('fatigue_shuffle', new AbilityContext(this.game, 'fatigue_shuffle', this, this.opponent, null, { drawEffect: true }));
+            this.deck.push(...this.discard);
+            this.discard = [];
+            const fatigue = this.game.createFatigueCard(this);
+            this.deck.push(fatigue);
+            this.shuffleDeck();
+            this.game.log(`${this.name} 的抽牌堆耗尽，弃牌堆洗牌并加入疲劳`, 'system');
+          }
+
+          if (this.deck.length === 0) {
+            this.game.log(`${this.name} 无牌可抽！`);
+            break;
+          }
+
+          const card = this.deck.pop();
+          this.hand.push(card);
+          card.zone = 'hand';
+          this.game.emit('draw', new AbilityContext(this.game, 'draw', this, this.opponent, card));
+        }
+      }
+
+      discardAllHand() {
+        while (this.hand.length > 0) {
+          const card = this.hand.pop();
+          this.discard.push(card);
+          card.zone = 'discard';
+        }
+      }
+
+      getZoneArray(zone) {
+        switch (zone) {
+          case 'deck': return this.deck;
+          case 'hand': return this.hand;
+          case 'field': return this.field;
+          case 'discard': return this.discard;
+          case 'banished': return this.banished;
+          default: return [];
+        }
+      }
+    }
+
+    /* ==================== 游戏引擎 ==================== */
+
+    class GameEngine {
+      constructor() {
+        this.player1 = null;
+        this.player2 = null;
+        this.currentPlayer = null;
+        this.firstPlayer = null;
+        this.turnCount = 0;
+        this.abilities = {};
+        this.gameOver = false;
+        this.winner = null;
+        this.logs = [];
+        this.ui = null;
+      }
+
+      log(msg, type = '') {
+        this.logs.push({ msg, type, time: Date.now() });
+        if (this.ui) this.ui.renderLog();
+      }
+
+      registerAbility(name, ability) {
+        this.abilities[name] = ability;
+      }
+
+      emit(event, context) {
+        const sorted = Object.entries(this.abilities)
+          .filter(a => a[1].triggers.includes(event))
+          .sort((a, b) => (b[1].priority || 0) - (a[1].priority || 0));
+
+        for (const [_, ability] of sorted) {
+          if (context.prevented && (ability.priority || 0) === 0) break;
+          if (ability.condition && !ability.condition(context)) continue;
+          ability.action(context);
+        }
+      }
+
+      createFatigueCard(owner) {
+        const def = {
+          name: '疲劳',
+          abilities: [],
+          fields: [{ name: '疲劳', type: 'keyword' }],
+          description: '不可打出。抽到这张牌时受到1点伤害。'
+        };
+        const cardDef = new CardDefinition(def);
+        return new CardInstance(cardDef, owner);
+      }
+
+      moveCard(card, toZone) {
+        const fromArr = card.owner.getZoneArray(card.zone);
+        const toArr = card.owner.getZoneArray(toZone);
+        const idx = fromArr.indexOf(card);
+        if (idx !== -1) {
+          fromArr.splice(idx, 1);
+          toArr.push(card);
+          card.zone = toZone;
+        }
+      }
+
+      dealDamage(player, amount) {
+        if (amount <= 0 || this.gameOver) return;
+        const oldHp = player.getFieldValue('hp');
+        player.modifyFieldValue('hp', -amount);
+        const newHp = player.getFieldValue('hp');
+        this.log(`${player.name} 受到 ${amount} 点伤害（${oldHp} → ${newHp}）`, 'damage');
+      }
+
+      heal(player, amount) {
+        if (amount <= 0 || this.gameOver) return;
+        const oldHp = player.getFieldValue('hp');
+        player.modifyFieldValue('hp', amount);
+        const newHp = player.getFieldValue('hp');
+        this.log(`${player.name} 恢复 ${amount} 点生命（${oldHp} → ${newHp}）`, 'heal');
+      }
+
+      playCard(player, card) {
+        if (this.gameOver) return false;
+        if (card.zone !== 'hand') {
+          this.log('这张牌不在手牌中');
+          return false;
+        }
+
+
+        // 构建 play_check 上下文，用于全局规则检查（费用、回合等）
+        const playCheckCtx = new AbilityContext(this, 'play_check', player, player.opponent, card);
+
+        // 触发全局 play_check 能力（费用检查、回合检查等）
+        this.emit('play_check', playCheckCtx);
+        if (playCheckCtx.prevented) {
+          this.log(`卡牌使用被阻止 ${playCheckCtx.preventReason}`);
+          return false;
+        }
+
+        // 构建 before_play 上下文，用于使用前触发
+        this.emit('before_play', new AbilityContext(this, 'before_play', player, player.opponent, card));
+
+        this.log(`${player.name} 使用 ${card.definition.name}`);
+
+        // 3. 触发卡牌自身的 on_play 能力
+        for (const ability of card.definition.abilities) {
+          if (ability.triggers.includes('on_play')) {
+            const actx = new AbilityContext(this, 'play', player, player.opponent, card);
+            if (!ability.condition || ability.condition(actx)) {
+              ability.action(actx);
+            }
+          }
+        }
+
+        // 4. 触发全局 after_play 能力（弃牌、炸弹倒计时等）
+        this.emit('after_play', new AbilityContext(this, 'after_play', player, player.opponent, card));
+
+        this.checkGameOver();
+        if (this.ui) this.ui.render();
+        return true;
+      }
+
+      checkGameOver() {
+        if (this.gameOver) return;
+        const p1Hp = this.player1.getFieldValue('hp');
+        const p2Hp = this.player2.getFieldValue('hp');
+        if (p1Hp <= 0) {
+          this.endGame(this.player2, this.player1);
+        } else if (p2Hp <= 0) {
+          this.endGame(this.player1, this.player2);
+        }
+      }
+
+      endGame(winner, loser) {
+        this.gameOver = true;
+        this.winner = winner;
+        this.log(`🏆 游戏结束！${winner.name} 获胜！`, 'system');
+        this.log(`${loser.name} 的生命值归零`);
+        if (this.ui) {
+          this.ui.render();
+          this.ui.showGameOver(winner);
+        }
+      }
+
+      startGame(deck1, deck2) {
+        this.player1 = new Player(1, '玩家1', deck1);
+        this.player2 = new Player(2, '玩家2', deck2);
+        this.player1.opponent = this.player2;
+        this.player2.opponent = this.player1;
+        this.player1.game = this;
+        this.player2.game = this;
+
+        this.registerDefaultAbilities();
+        this.registerDeckAbilities(deck1);
+        this.registerDeckAbilities(deck2);
+
+        this.log('=== 游戏开始 ===', 'system');
+        this.emit('game_start', new AbilityContext(this, 'game_start', this.player1, this.player2));
+
+        this.startTurn();
+      }
+
+      registerDefaultAbilities() {
+        this.registerAbility('先攻决定', {
+          triggers: ['game_start'],
+          priority: 100,
+          action: (ctx) => {
+            const p1Init = ctx.game.player1.getFieldValue('先攻') || 0;
+            const p2Init = ctx.game.player2.getFieldValue('先攻') || 0;
+            let first;
+            if (p1Init > p2Init) first = ctx.game.player1;
+            else if (p2Init > p1Init) first = ctx.game.player2;
+            else first = Math.random() < 0.5 ? ctx.game.player1 : ctx.game.player2;
+
+            ctx.game.firstPlayer = first;
+            ctx.game.currentPlayer = first;
+            ctx.game.turnCount = 0;
+            ctx.game.log(`先攻决定：${first.name} 先手（先攻值 ${Math.max(p1Init, p2Init)}）`, 'system');
+          }
+        });
+
+        this.registerAbility('初始抽牌', {
+          triggers: ['game_start'],
+          priority: 90,
+          action: (ctx) => {
+            ctx.game.player1.shuffleDeck();
+            ctx.game.player2.shuffleDeck();
+            ctx.game.player1.draw(5);
+            ctx.game.player2.draw(5);
+            ctx.game.log('双方各抽5张初始手牌', 'system');
+          }
+        });
+
+        this.registerAbility('回合开始资源', {
+          triggers: ['turn_start'],
+          priority: 80,
+          condition: (ctx) => ctx.game.turnCount >= 2,
+          action: (ctx) => {
+            const cp = ctx.game.currentPlayer;
+            cp.discardAllHand();
+            cp.draw(5);
+            ctx.game.log(`${cp.name} 弃置所有手牌并抽取5张`, 'system');
+          }
+        });
+
+        this.registerAbility('MP恢复', {
+          triggers: ['turn_start'],
+          priority: 70,
+          condition: (ctx) => {
+            if (ctx.player.hasField('mp')) {
+              const mp = ctx.player.fields.mp;
+              return ctx.player === ctx.game.currentPlayer && mp && mp.max !== null;
+            }
+            return false;
+          },
+          action: (ctx) => {
+            const mp = ctx.player.fields.mp;
+            if (mp && mp.max !== null) {
+              const old = mp.value;
+              ctx.player.modifyFieldValue('mp', mp.max);
+              if (old !== mp.value) {
+                ctx.game.log(`${ctx.player.name} 的 MP 恢复至 ${mp.max}`, 'mp');
+              }
+            }
+          }
+        });
+
+        this.registerAbility('使用弃牌', {
+          triggers: ['after_play'],
+          priority: 0,
+          action: (ctx) => {
+            if (ctx.card && ctx.card.zone === 'hand') {
+              ctx.game.moveCard(ctx.card, 'discard');
+            }
+          }
+        });
+
+        this.registerAbility('疲劳伤害', {
+          triggers: ['draw'],
+          priority: 50,
+          condition: (ctx) => ctx.card && ctx.card.definition.hasKeyword('疲劳'),
+          action: (ctx) => {
+            ctx.game.dealDamage(ctx.player, 1);
+            ctx.game.log(`${ctx.player.name} 受到疲劳伤害！`, 'damage');
+          }
+        });
+
+        this.registerAbility('疲劳禁止', {
+          triggers: ['play_check'],
+          priority: 1000,
+          condition: (ctx) => ctx.card && ctx.card.definition.hasKeyword('疲劳'),
+          action: (ctx) => {
+            ctx.preventDefault('不能被打出');
+          }
+        });
+
+        this.registerAbility('生命检查', {
+          triggers: ['hp_change'],
+          priority: 0,
+          condition: (ctx) => ctx.target && ctx.target.getFieldValue('hp') <= 0,
+          action: (ctx) => {
+            ctx.game.checkGameOver();
+          }
+        });
+
+        // 全局规则：回合检查 - 只有当前行动玩家可以出牌
+        this.registerAbility('回合检查', {
+          triggers: ['play_check'],
+          priority: 100,
+          condition: (ctx) => ctx.game.currentPlayer !== ctx.player,
+          action: (ctx) => {
+            ctx.preventDefault('当前不是你的回合！');
+          }
+        });
+
+        // 全局规则：费用检查 - 检查 MP
+        this.registerAbility('费用检查', {
+          triggers: ['play_check'],
+          priority: 90,
+          condition: (ctx) => ctx.card && ctx.card.definition.hasCost(),
+          action: (ctx) => {
+            const cost = ctx.card.definition.getCost();
+            const currentMp = ctx.player.getFieldValue('mp');
+            if (currentMp < cost) {
+              ctx.preventDefault(`${ctx.card.definition.name} 需要 ${cost} MP，当前只有 ${currentMp} MP`);
+            }
+          }
+        });
+
+        // 全局规则：费用消耗 - 消耗 MP
+        this.registerAbility('费用消耗', {
+          triggers: ['before_play'],
+          priority: 90,
+          condition: (ctx) => ctx.card && ctx.card.definition.hasCost(),
+          action: (ctx) => {
+            const cost = ctx.card.definition.getCost();
+            const currentMp = ctx.player.getFieldValue('mp');
+            ctx.player.setFieldValue('mp', currentMp - cost);
+            ctx.game.log(`${ctx.player.name} 消耗 ${cost} MP`, 'mp');
+          }
+        });
+      }
+
+      registerDeckAbilities(deckDef) {
+        for (const [name, ab] of Object.entries(deckDef.abilities || {})) {
+          this.registerAbility(name, ab);
+        }
+      }
+
+      startTurn() {
+        if (this.gameOver) return;
+        this.turnCount++;
+        this.log(`=== 第 ${this.turnCount} 回合 ===`, 'system');
+        this.log(`当前行动: ${this.currentPlayer.name}`);
+
+        this.emit('turn_start', new AbilityContext(this, 'turn_start', this.currentPlayer, this.currentPlayer.opponent));
+        if (this.ui) this.ui.render();
+      }
+
+      endTurn() {
+        if (this.gameOver) return;
+        this.emit('turn_end', new AbilityContext(this, 'turn_end', this.currentPlayer, this.currentPlayer.opponent));
+        this.currentPlayer = this.currentPlayer.opponent;
+        this.startTurn();
+      }
+    }
+
+    /* ==================== UI 系统 ==================== */
+
+    class UI {
+      constructor(game) {
+        this.game = game;
+        game.ui = this;
+        this.selectedCard = null;
+      }
+
+      render() {
+        this.renderPlayer(this.game.player1, 'p1');
+        this.renderPlayer(this.game.player2, 'p2');
+        this.renderCenter();
+      }
+
+      renderPlayer(player, prefix) {
+        // 动态渲染角色所有字段
+        const statsEl = document.getElementById(`${prefix}-stats`);
+        statsEl.innerHTML = '';
+        for (const [name, field] of Object.entries(player.fields)) {
+          const box = document.createElement('div');
+          box.className = 'stat-box';
+          let valueStr;
+          if (field.type === 'keyword') {
+            valueStr = field.value ? '有' : '无';
+          } else if (field.type === 'value') {
+            valueStr = String(field.value);
+            if (field.max !== null) valueStr += '/' + field.max;
+          } else if (field.type === 'counter') {
+            const entries = Object.entries(field.values || {});
+            if (entries.length === 0) {
+              valueStr = '0';
+            } else if (entries.length === 1) {
+              valueStr = String(entries[0][1]);
+            } else {
+              valueStr = entries.map(([id, v]) => v).join('|');
+            }
+          } else {
+            valueStr = String(field.value);
+          }
+          box.innerHTML = `
+        <div class="stat-label">${name}</div>
+        <div class="stat-value">${valueStr}</div>
+      `;
+          statsEl.appendChild(box);
+        }
+
+        document.getElementById(`${prefix}-deck-count`).textContent = player.deck.length;
+        document.getElementById(`${prefix}-discard-count`).textContent = player.discard.length;
+        document.getElementById(`${prefix}-banished-count`).textContent = player.banished.length;
+
+        const isCurrent = this.game.currentPlayer === player && !this.game.gameOver;
+        document.getElementById(`${prefix}-panel`).classList.toggle('active-turn', isCurrent);
+
+        const handEl = document.getElementById(`${prefix}-hand`);
+        handEl.innerHTML = '';
+        for (const card of player.hand) {
+          const el = this.createCardElement(card, player, true);
+          handEl.appendChild(el);
+        }
+
+        const fieldEl = document.getElementById(`${prefix}-field`);
+        fieldEl.innerHTML = '';
+        for (const card of player.field) {
+          const el = this.createCardElement(card, player, false);
+          fieldEl.appendChild(el);
+        }
+      }
+
+      createCardElement(card, player, interactive) {
+        const el = document.createElement('div');
+        el.className = 'card';
+        let playable = false;
+        if (interactive) {
+          const playCheckCtx = new AbilityContext(this.game, 'play_check', player, player.opponent, card);
+          this.game.emit('play_check', playCheckCtx);
+          playable = !playCheckCtx.prevented;
+          if (playable) el.classList.add('playable');
+        } else {
+          el.classList.add('unusable');
+        }
+
+        if (this.selectedCard === card) el.classList.add('selected');
+
+        const kw = Object.entries(card.definition.staticFields)
+          .filter(([k, v]) => v.type === 'keyword' && v.value)
+          .map(([k]) => `<span class="keyword-tag">${k}</span>`).join('');
+
+        const v = Object.entries(card.definition.staticFields)
+          .filter(([k, v]) => v.type === 'value')
+          .map(([k, v]) => `<span class="value-tag">${v.value}</span>`).join('');
+
+        el.innerHTML = `
+      <div style="display:flex;justify-content:center;align-items:center;flex:1;">
+        <div class="card-value">${v}</div>
+        <div class="card-keywords">${kw}</div>
+        <div class="card-name">${card.definition.name}</div>
+      </div>
+      <div class="card-desc">${card.definition.description || ''}</div>
+    `;
+
+        if (interactive) {
+          el.onclick = () => this.selectCard(card, player);
+        }
+        return el;
+      }
+
+      selectCard(card, player) {
+        this.selectedCard = card;
+        this.render();
+
+        const detail = document.getElementById('card-detail');
+        const playCheckCtx = new AbilityContext(this.game, 'play_check', player, player.opponent, card);
+        // 触发全局 play_check 能力（费用检查、回合检查等）
+        this.game.emit('play_check', playCheckCtx);
+
+        const abilityDesc = card.definition.abilities.map((ab, i) => {
+          return `<div style="margin:4px 0;font-size:0.85rem;opacity:0.9;">• ${ab.name || '能力' + (i + 1)}</div>`;
+        }).join('');
+
+        const fields = Object.entries(card.definition.staticFields).map(([k, v]) => {
+          if (v.type === 'keyword' && v.value) return `${k}`;
+          if (v.type === 'value') return `${k}: ${v.value}`;
+          return '';
+        }).filter(Boolean).join(' | ') || '无';
+
+        const counters = Object.entries(card.counters).map(([name, map]) => {
+          const sum = Object.values(map).reduce((a, b) => a + b, 0);
+          return `${name}: ${sum}`;
+        }).join(' | ') || '无';
+
+        detail.innerHTML = `
+      <h3>${card.definition.name}</h3>
+      <div class="detail-row"><span>字段</span><span style="font-size:0.8rem;">${fields}</span></div>
+      <div class="detail-row"><span>计数器</span><span style="font-size:0.8rem;">${counters}</span></div>
+      <div style="margin-top:8px;font-size:0.85rem;opacity:0.8;">${card.definition.description || ''}</div>
+      <div style="margin-top:6px;">${abilityDesc}</div>
+      ${!playCheckCtx.prevented ? `<button onclick="playSelectedCard()">使用卡牌</button>` : `<button disabled>${playCheckCtx.preventReason}</button>`}
+    `;
+      }
+
+      renderCenter() {
+        document.getElementById('turn-count').textContent = this.game.turnCount;
+        const cp = this.game.currentPlayer;
+        document.getElementById('current-player').textContent =
+          this.game.gameOver ? '游戏已结束' : `当前行动: ${cp ? cp.name : '-'}`;
+
+        document.getElementById('end-turn-btn').disabled =
+          this.game.gameOver || !this.game.currentPlayer;
+      }
+
+      renderLog() {
+        const logEl = document.getElementById('log');
+        logEl.innerHTML = this.game.logs.map(l =>
+          `<div class="log-entry ${l.type}">[${new Date(l.time).toLocaleTimeString().split(' ')[0]}] ${l.msg}</div>`
+        ).join('');
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      showGameOver(winner) {
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        overlay.innerHTML = `
+      <div class="modal">
+        <h2>🏆 ${winner.name} 获胜！</h2>
+        <p>游戏已结束，点击重新开始</p>
+        <button onclick="location.reload()">重新开始</button>
+      </div>
+    `;
+        document.body.appendChild(overlay);
+      }
+
+      viewZone(player, zone) {
+        const arr = player.getZoneArray(zone);
+        const names = arr.map(c => c.definition.name).join(', ') || '空';
+        alert(`${player.name} 的${zone === 'deck' ? '抽牌堆' : zone === 'discard' ? '弃牌堆' : '除外堆'} (${arr.length}张):
+${names}`);
+      }
+    }
+
+    /* ==================== 牌组文件加载 ==================== */
+
+    let loadedDeck1 = null;
+    let loadedDeck2 = null;
+
+    function loadDeckFromFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const deck = JSON.parse(e.target.result);
+          validateDeck(deck);
+          restoreDeckFunctions(deck);
+
+          if (!loadedDeck1) {
+            loadedDeck1 = deck;
+            document.getElementById('deck-preview').style.display = 'block';
+            document.getElementById('deck-preview').textContent = '已加载玩家1牌组: ' + (deck.name || '未命名') + '\n' + JSON.stringify(deck, null, 2);
+            alert('玩家1牌组已加载: ' + (deck.name || '未命名') + '\n请再加载一份作为玩家2牌组，或点击开始游戏使用同一份牌组。');
+          } else if (!loadedDeck2) {
+            loadedDeck2 = deck;
+            document.getElementById('deck-preview').textContent += '\n\n已加载玩家2牌组: ' + (deck.name || '未命名');
+            alert('玩家2牌组已加载: ' + (deck.name || '未命名') + '\n点击开始游戏！');
+          } else {
+            loadedDeck1 = loadedDeck2;
+            loadedDeck2 = deck;
+            alert('已替换玩家2牌组。');
+          }
+        } catch (err) {
+          alert('牌组文件解析失败: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function strToFunction(str, fallback) {
+      if (typeof str !== 'string') return fallback;
+      try {
+        return eval('(' + str + ')');
+      } catch (e) {
+        console.warn('Failed to parse function string:', str, e);
+        return fallback;
+      }
+    }
+
+    function restoreDeckFunctions(deck) {
+      for (const [_, ab] of Object.entries(deck.abilities || {})) {
+        if (typeof ab.condition === 'string') ab.condition = strToFunction(ab.condition, () => true);
+        if (typeof ab.action === 'string') ab.action = strToFunction(ab.action, () => { });
+      }
+      for (const card of (deck.cards || [])) {
+        if (typeof card.condition === 'string') card.condition = strToFunction(card.condition, () => true);
+        for (const ab of (card.abilities || [])) {
+          if (typeof ab.condition === 'string') ab.condition = strToFunction(ab.condition, () => true);
+          if (typeof ab.action === 'string') ab.action = strToFunction(ab.action, () => { });
+        }
+      }
+    }
+
+    function validateDeck(deck) {
+      if (!deck.fieldDefinitions || typeof deck.fieldDefinitions !== 'object') {
+        throw new Error('缺少 fieldDefinitions 对象');
+      }
+      if (!deck.playerBindings || typeof deck.playerBindings !== 'object') {
+        throw new Error('缺少 playerBindings 对象');
+      }
+      const hpDef = deck.fieldDefinitions.hp;
+      if (!hpDef || hpDef.type !== 'value') {
+        throw new Error('牌组必须在 fieldDefinitions 中定义 hp 为 value 类型');
+      }
+      if (deck.playerBindings.hp === undefined) {
+        throw new Error('牌组必须在 playerBindings 中为 hp 赋初值');
+      }
+      if (!deck.cards || !Array.isArray(deck.cards)) {
+        throw new Error('缺少 cards 数组');
+      }
+      return true;
+    }
+
+    function serializeDeck(deck) {
+      // 深拷贝并递归将函数转为字符串
+      function deepCopyAndStringify(obj) {
+        if (obj === null || typeof obj !== 'object') {
+          if (typeof obj === 'function') return obj.toString().replace(/\s+/g, " ").trim();
+          return obj;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(deepCopyAndStringify);
+        }
+        const clone = {};
+        for (const key in obj) {
+          if (obj.hasOwnProperty(key)) {
+            clone[key] = deepCopyAndStringify(obj[key]);
+          }
+        }
+        return clone;
+      }
+      return deepCopyAndStringify(deck);
+    }
+
+    function downloadExampleDeck() {
+      const blob = new Blob([JSON.stringify(serializeDeck(defaultDeck), null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'example_deck.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    /* ==================== 示例套牌定义 ==================== */
+
+    const defaultDeck = {
+      name: '基础套牌',
+      fieldDefinitions: {
+        hp: { type: 'value', max: 20, min: 0 },
+        mp: { type: 'value', max: 3, min: 0 },
+        先攻: { type: 'value' },
+        护甲: { type: 'value' },
+        炸弹: { type: 'counter' }
+      },
+      abilities: {
+        格挡伤害: {
+          triggers: ['hp_change'],
+          priority: 10,
+          condition: (ctx) => ctx.target.getFieldValue('护甲') > 0,
+          action: (ctx) => {
+            if (ctx.data.new < ctx.data.old) {
+              if (ctx.data.old - ctx.data.new > ctx.target.getFieldValue('护甲')) {
+                ctx.target.modifyFieldValue('hp', ctx.target.getFieldValue('护甲'));
+                ctx.target.setFieldValue('护甲', 0);
+              } else {
+                ctx.target.modifyFieldValue('护甲', ctx.data.new - ctx.data.old);
+                ctx.target.setFieldValue('hp', ctx.data.old);
+              }
+            }
+          }
+        },
+        炸弹倒计时: {
+          triggers: ['after_play'],
+          priority: 5,
+          condition: (ctx) => true,
+          action: (ctx) => {
+            const bombField = ctx.player.fields['炸弹'];
+            if (!bombField || bombField.type !== 'counter') return;
+            const values = bombField.values || {};
+            for (const effectId of Object.keys(values)) {
+              const value = values[effectId];
+              if (value > 0) {
+                ctx.player.modifyCounter('炸弹', effectId, -1);
+                if (ctx.player.getCounter('炸弹', effectId) <= 0) {
+                  ctx.player.removeCounter('炸弹', effectId);
+                  ctx.game.dealDamage(ctx.player, 10);
+                  ctx.game.log(`${ctx.player.name} 的炸弹爆炸了！受到10点伤害`, 'damage');
+                } else {
+                  ctx.game.log(`${ctx.player.name} 的炸弹倒计时: ${ctx.player.getCounter('炸弹', effectId)}`, 'system');
+                }
+              }
+            }
+          }
+        }
+      },
+      playerBindings: { hp: 20, mp: 3, 先攻: 1 },
+      cards: [
+        {
+          name: '攻击',
+          fields: [{ name: 'cost', type: 'value', value: 1 }],
+          description: '造成3点伤害',
+          abilities: [
+            {
+              triggers: ['on_play'],
+              action: (ctx) => {
+                ctx.game.dealDamage(ctx.target, 3);
+              }
+            }
+          ],
+          quantity: 6
+        },
+        {
+          name: '恢复',
+          fields: [{ name: 'cost', type: 'value', value: 1 }],
+          description: '恢复2点生命',
+          abilities: [
+            {
+              triggers: ['on_play'],
+              action: (ctx) => {
+                ctx.game.heal(ctx.player, 2);
+              }
+            }
+          ],
+          quantity: 4
+        },
+        {
+          name: '充能',
+          fields: [],
+          description: '恢复2点MP',
+          abilities: [
+            {
+              triggers: ['on_play'],
+              action: (ctx) => {
+                ctx.player.setFieldValue('mp', ctx.player.getFieldValue('mp') + 2);
+              }
+            }
+          ],
+          quantity: 4
+        },
+        {
+          name: '火球',
+          fields: [{ name: 'cost', type: 'value', value: 2 }],
+          description: '造成5点伤害',
+          abilities: [
+            {
+              triggers: ['on_play'],
+              action: (ctx) => {
+                ctx.game.dealDamage(ctx.target, 5);
+              }
+            }
+          ],
+          quantity: 3
+        },
+        {
+          name: '护盾',
+          fields: [{ name: 'cost', type: 'value', value: 1 }],
+          description: '获得3点护甲',
+          abilities: [
+            {
+              triggers: ['on_play'],
+              action: (ctx) => {
+                ctx.player.modifyFieldValue('护甲', 3);
+              }
+            }
+          ],
+          quantity: 3
+        },
+        {
+          name: '炸弹',
+          fields: [{ name: 'cost', type: 'value', value: 2 }],
+          description: '给对方放置一个炸弹计数器(出10张牌后爆炸)',
+          abilities: [
+            {
+              triggers: ['on_play'],
+              action: (ctx) => {
+                ctx.target.setCounter('炸弹', generateId(), 10);
+                ctx.game.log(`${ctx.target.name} 被放置了炸弹！倒计时: 10`, 'system');
+              }
+            }
+          ],
+          quantity: 3
+        }
+      ]
+    };
+
+    /* ==================== 启动 ==================== */
+
+    let game;
+    let ui;
+
+    function startGame() {
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('game').style.display = 'grid';
+
+      game = new GameEngine();
+      ui = new UI(game);
+
+      const d1 = loadedDeck1 || defaultDeck;
+      const d2 = loadedDeck2 || loadedDeck1 || defaultDeck;
+      game.startGame(d1, d2);
+      ui.render();
+    }
+
+    function playSelectedCard() {
+      if (!ui.selectedCard) return;
+      const card = ui.selectedCard;
+      const player = card.owner;
+      const success = game.playCard(player, card);
+      if (success) {
+        ui.selectedCard = null;
+        document.getElementById('card-detail').innerHTML = '<p style="opacity:0.6;text-align:center;margin-top:30px;">点击手牌查看详情</p>';
+      }
+      ui.render();
+    }
+  </script>
+</body>
+
+</html>
