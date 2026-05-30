@@ -1610,12 +1610,10 @@
 
         // 预计算可打出卡牌
         const playableCards = new Set();
-        if (isCurrent) {
-          for (const card of player.hand) {
-            const playCheckCtx = new AbilityContext(this.game, 'play_check', this.game.currentPlayer, player, player.opponent, card);
-            await this.game.emit('play_check', playCheckCtx);
-            if (!playCheckCtx.prevented) playableCards.add(card);
-          }
+        for (const card of player.hand) {
+          const playCheckCtx = new AbilityContext(this.game, 'play_check', this.game.currentPlayer, player, player.opponent, card);
+          await this.game.emit('play_check', playCheckCtx);
+          if (!playCheckCtx.prevented) playableCards.add(card);
         }
 
         const handEl = document.getElementById(`${prefix}-hand`);
