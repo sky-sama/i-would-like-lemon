@@ -591,6 +591,92 @@
   .card { width: 110px; min-width: 110px; height: 145px; }
   .hand-area { max-height: 180px; }
     }
+  
+    /* ===== 选项接口样式 ===== */
+    .option-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+    }
+    .option-modal {
+      background: var(--panel);
+      border: 2px solid var(--accent);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 700px;
+      width: 90%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .option-modal h3 {
+      color: var(--accent);
+      margin-bottom: 16px;
+      font-size: 1.2rem;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .option-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      padding: 4px;
+      flex: 1;
+      min-height: 0;
+    }
+    .option-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .option-item:hover {
+      background: var(--card-hover);
+      border-color: var(--accent);
+    }
+    .option-item.selected {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .option-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      overflow-y: auto;
+      padding: 4px;
+      flex: 1;
+      min-height: 0;
+    }
+    .option-cards .card.selected {
+      border-color: var(--selected);
+      box-shadow: 0 0 12px rgba(241, 196, 15, 0.4);
+      transform: translateY(-6px);
+    }
+    .option-hint {
+      font-size: 0.8rem;
+      opacity: 0.6;
+      text-align: center;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+
+  
+    @keyframes slideDown {
+      from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
   </style>
 </head>
 
@@ -646,7 +732,7 @@
       </div>
       <div class="log-area" id="log"></div>
       <div class="controls">
-        <button id="end-turn-btn" onclick="game.endTurn()">结束回合</button>
+        <button id="end-turn-btn">结束回合</button>
       </div>
       <div class="card-detail" id="card-detail">
         <p style="opacity:0.6;text-align:center;margin-top:30px;">点击手牌查看详情</p>
@@ -778,16 +864,29 @@
       }
     }
 
+    /**
+     * AbilityContext 语义统一说明：
+     * - actor:   当前回合的玩家（动作执行者）
+     * - source:  事件的来源（触发者，可能是玩家或卡牌）
+     * - target:  事件的目标（受影响的对象）
+     * - card:    相关的卡牌实例
+     * - ability: 当前正在执行的能力对象（在 before/after_ability_execute 钩子中填充）
+     * - data:    额外数据
+     * - player:  兼容旧代码，等同于 actor
+     */
     class AbilityContext {
-      constructor(game, event, player, target, card, data = {}) {
+      constructor(game, event, actor, source, target, card, data = {}) {
         this.game = game;
         this.event = event;
-        this.player = player;
-        this.target = target;
-        this.card = card;
+        this.actor = actor;        // 当前回合玩家（动作执行者）
+        this.source = source;      // 事件源（触发者）
+        this.target = target;      // 目标对象
+        this.card = card;          // 相关卡牌
+        this.ability = null;       // 当前执行的能力（由统一入口设置）
         this.data = data;
         this.prevented = false;
         this.preventReason = '';
+        this.player = actor;       // 兼容旧代码
       }
 
       preventDefault(reason = '') {
@@ -834,8 +933,8 @@
       constructor(id, name, deckDef) {
         this.id = id;
         this.name = name;
-        this.fieldDefinitions = {}; // 字段定义（类型、上下限）
-        this.fields = {}; // 实际绑定的字段（含当前值）
+        this.fieldDefinitions = {};
+        this.fields = {};
         this.deck = [];
         this.hand = [];
         this.field = [];
@@ -859,7 +958,6 @@
               min: def.min !== undefined ? def.min : (def.type === 'value' ? 0 : null)
             };
           } else {
-            // 未在 fieldDefinitions 中定义类型，默认创建为无上下限的 value
             this.fields[name] = {
               type: 'value',
               value: typeof value === 'number' ? value : 0,
@@ -919,7 +1017,7 @@
         const f = this.fields[name];
         if (!f || f.type !== 'counter') return;
         delete f.values[effectId];
-        if (!this.fields[name]) removeField(name);
+        if (Object.keys(f.values || {}).length === 0) this.removeField(name);
       }
 
       modifyCounter(name, effectId, delta) {
@@ -951,7 +1049,7 @@
         return 0;
       }
 
-      setFieldValue(name, value) {
+      async setFieldValue(name, value) {
         this.ensureFieldExists(name);
         const f = this.fields[name];
         const old = f.value;
@@ -961,16 +1059,18 @@
           f.value = value;
         }
         if (old !== f.value) {
-          this.game?.emit(`${name}_change`, new AbilityContext(this.game, `${name}_change`, null, this, null, { old, new: f.value }));
+          await this.game?.emit(`${name}_change`, new AbilityContext(
+            this.game, `${name}_change`, this.game?.currentPlayer, this, this, null, { old, new: f.value }
+          ));
         }
       }
 
-      modifyFieldValue(name, delta) {
+      async modifyFieldValue(name, delta) {
         if (delta === 0) return;
         this.ensureFieldExists(name);
         const f = this.fields[name];
         if (f.type !== 'value') return;
-        this.setFieldValue(name, Math.max(Math.min(f.value + delta, Math.max(f.value, f.max || Infinity)), Math.min(f.value, f.min || -Infinity)));
+        await this.setFieldValue(name, Math.max(Math.min(f.value + delta, Math.max(f.value, f.max || Infinity)), Math.min(f.value, f.min || -Infinity)));
       }
 
       setKeyword(name, val) {
@@ -992,10 +1092,12 @@
         shuffleArray(this.deck);
       }
 
-      draw(count) {
+      async draw(count) {
         for (let i = 0; i < count; i++) {
           if (this.deck.length === 0 && this.discard.length > 0) {
-            this.game.emit('fatigue_shuffle', new AbilityContext(this.game, 'fatigue_shuffle', this, this.opponent, null, { drawEffect: true }));
+            await this.game.emit('fatigue_shuffle', new AbilityContext(
+              this.game, 'fatigue_shuffle', this.game.currentPlayer, this, this.opponent, null, { drawEffect: true }
+            ));
             this.deck.push(...this.discard);
             this.discard = [];
             const fatigue = this.game.createFatigueCard(this);
@@ -1012,7 +1114,9 @@
           const card = this.deck.pop();
           this.hand.push(card);
           card.zone = 'hand';
-          this.game.emit('draw', new AbilityContext(this.game, 'draw', this, this.opponent, card));
+          await this.game.emit('draw', new AbilityContext(
+            this.game, 'draw', this.game.currentPlayer, this, this.opponent, card
+          ));
         }
       }
 
@@ -1061,15 +1165,88 @@
         this.abilities[name] = ability;
       }
 
-      emit(event, context) {
+      /**
+       * 统一效果入口：所有ability执行前都会触发 before_ability_execute，
+       * 执行后触发 after_ability_execute。支持针对性打康。
+       */
+      async _runAbility(name, ability, context) {
+        try {
+        // 1. before_ability_execute 钩子
+        const beforeCtx = new AbilityContext(
+          this, 'before_ability_execute',
+          context.actor, context.source, context.target, context.card,
+          { ...context.data, originalEvent: context.event, originalAbility: { name, ...ability } }
+        );
+        beforeCtx.ability = { name, ...ability };
+        await this._executeDirect('before_ability_execute', beforeCtx);
+
+        if (beforeCtx.prevented) {
+          this.log(`[Counter] ${name} 被阻止: ${beforeCtx.preventReason}`, 'system');
+          return;
+        }
+
+        // 2. 执行原ability
+        const result = ability.action(context);
+        if (result && typeof result.then === 'function') await result;
+
+        // 3. after_ability_execute 钩子
+        const afterCtx = new AbilityContext(
+          this, 'after_ability_execute',
+          context.actor, context.source, context.target, context.card,
+          { ...context.data, originalEvent: context.event, originalAbility: { name, ...ability } }
+        );
+        afterCtx.ability = { name, ...ability };
+        await this._executeDirect('after_ability_execute', afterCtx);
+        } catch (err) {
+          this._handleAbilityError(name, ability, context, err);
+        }
+      }
+
+      _handleAbilityError(name, ability, context, err) {
+        const abilityName = name || '匿名能力';
+        const event = context?.event || 'unknown';
+        const source = context?.source?.name || '?';
+        const msg = `[异常] 能力「${abilityName}」在事件「${event}」中执行失败（来源: ${source}）\n错误: ${err.message || err}`;
+        console.error(msg, err);
+        this.log(msg, 'system');
+        if (this.ui) {
+          this.ui.showErrorToast(`能力「${abilityName}」执行失败: ${err.message || err}`);
+        }
+      }
+
+      /**
+       * 直接执行事件abilities，不触发 before/after 钩子（避免递归）
+       */
+      async _executeDirect(event, context) {
         const sorted = Object.entries(this.abilities)
-          .filter(a => a[1].triggers.includes(event))
+          .filter(([_, a]) => a.triggers.includes(event))
           .sort((a, b) => (b[1].priority || 0) - (a[1].priority || 0));
 
-        for (const [_, ability] of sorted) {
+        for (const [name, ability] of sorted) {
+          try {
           if (context.prevented && (ability.priority || 0) === 0) break;
           if (ability.condition && !ability.condition(context)) continue;
-          ability.action(context);
+          const result = ability.action(context);
+          if (result && typeof result.then === 'function') await result;
+          } catch (err) {
+            this._handleAbilityError(name, ability, context, err);
+          }
+        }
+      }
+
+      async emit(event, context) {
+        const sorted = Object.entries(this.abilities)
+          .filter(([_, a]) => a.triggers.includes(event))
+          .sort((a, b) => (b[1].priority || 0) - (a[1].priority || 0));
+
+        for (const [name, ability] of sorted) {
+          try {
+          if (context.prevented && (ability.priority || 0) === 0) break;
+          if (ability.condition && !ability.condition(context)) continue;
+          await this._runAbility(name, ability, context);
+          } catch (err) {
+            this._handleAbilityError(name, ability, context, err);
+          }
         }
       }
 
@@ -1095,60 +1272,55 @@
         }
       }
 
-      dealDamage(player, amount) {
+      async dealDamage(player, amount) {
         if (amount <= 0 || this.gameOver) return;
         const oldHp = player.getFieldValue('hp');
-        player.modifyFieldValue('hp', -amount);
+        await player.modifyFieldValue('hp', -amount);
         const newHp = player.getFieldValue('hp');
         this.log(`${player.name} 受到 ${amount} 点伤害（${oldHp} → ${newHp}）`, 'damage');
       }
 
-      heal(player, amount) {
+      async heal(player, amount) {
         if (amount <= 0 || this.gameOver) return;
         const oldHp = player.getFieldValue('hp');
-        player.modifyFieldValue('hp', amount);
+        await player.modifyFieldValue('hp', amount);
         const newHp = player.getFieldValue('hp');
         this.log(`${player.name} 恢复 ${amount} 点生命（${oldHp} → ${newHp}）`, 'heal');
       }
 
-      playCard(player, card) {
+      async playCard(player, card) {
         if (this.gameOver) return false;
         if (card.zone !== 'hand') {
           this.log('这张牌不在手牌中');
           return false;
         }
 
-
-        // 构建 play_check 上下文，用于全局规则检查（费用、回合等）
-        const playCheckCtx = new AbilityContext(this, 'play_check', player, player.opponent, card);
-
-        // 触发全局 play_check 能力（费用检查、回合检查等）
-        this.emit('play_check', playCheckCtx);
+        const playCheckCtx = new AbilityContext(this, 'play_check', this.currentPlayer, player, player.opponent, card);
+        await this.emit('play_check', playCheckCtx);
         if (playCheckCtx.prevented) {
-          this.log(`卡牌使用被阻止 ${playCheckCtx.preventReason}`);
+          this.log(`卡牌使用被阻止: ${playCheckCtx.preventReason}`);
           return false;
         }
 
-        // 构建 before_play 上下文，用于使用前触发
-        this.emit('before_play', new AbilityContext(this, 'before_play', player, player.opponent, card));
-
+        await this.emit('before_play', new AbilityContext(this, 'before_play', this.currentPlayer, player, player.opponent, card));
         this.log(`${player.name} 使用 ${card.definition.name}`);
 
-        // 3. 触发卡牌自身的 on_play 能力
         for (const ability of card.definition.abilities) {
           if (ability.triggers.includes('on_play')) {
-            const actx = new AbilityContext(this, 'play', player, player.opponent, card);
+            try {
+            const actx = new AbilityContext(this, 'play', this.currentPlayer, player, player.opponent, card);
             if (!ability.condition || ability.condition(actx)) {
-              ability.action(actx);
+              await this._runAbility(`卡牌能力:${ability.name || '未知'}`, ability, actx);
+              }
+            } catch (err) {
+              this._handleAbilityError(`卡牌能力:${ability.name || '未知'}`, ability, context, err);
             }
           }
         }
 
-        // 4. 触发全局 after_play 能力（弃牌、炸弹倒计时等）
-        this.emit('after_play', new AbilityContext(this, 'after_play', player, player.opponent, card));
-
+        await this.emit('after_play', new AbilityContext(this, 'after_play', this.currentPlayer, player, player.opponent, card));
         this.checkGameOver();
-        if (this.ui) this.ui.render();
+        if (this.ui) await this.ui.render();
         return true;
       }
 
@@ -1174,7 +1346,7 @@
         }
       }
 
-      startGame(deck1, deck2) {
+      async startGame(deck1, deck2) {
         this.player1 = new Player(1, '玩家1', deck1);
         this.player2 = new Player(2, '玩家2', deck2);
         this.player1.opponent = this.player2;
@@ -1187,9 +1359,9 @@
         this.registerDeckAbilities(deck2);
 
         this.log('=== 游戏开始 ===', 'system');
-        this.emit('game_start', new AbilityContext(this, 'game_start', this.player1, this.player2));
+        await this.emit('game_start', new AbilityContext(this, 'game_start', this.player1, this.player1, this.player2));
 
-        this.startTurn();
+        await this.startTurn();
       }
 
       registerDefaultAbilities() {
@@ -1214,11 +1386,11 @@
         this.registerAbility('初始抽牌', {
           triggers: ['game_start'],
           priority: 90,
-          action: (ctx) => {
+          action: async (ctx) => {
             ctx.game.player1.shuffleDeck();
             ctx.game.player2.shuffleDeck();
-            ctx.game.player1.draw(5);
-            ctx.game.player2.draw(5);
+            await ctx.game.player1.draw(5);
+            await ctx.game.player2.draw(5);
             ctx.game.log('双方各抽5张初始手牌', 'system');
           }
         });
@@ -1227,10 +1399,10 @@
           triggers: ['turn_start'],
           priority: 80,
           condition: (ctx) => ctx.game.turnCount >= 2,
-          action: (ctx) => {
+          action: async (ctx) => {
             const cp = ctx.game.currentPlayer;
             cp.discardAllHand();
-            cp.draw(5);
+            await cp.draw(5);
             ctx.game.log(`${cp.name} 弃置所有手牌并抽取5张`, 'system');
           }
         });
@@ -1239,19 +1411,19 @@
           triggers: ['turn_start'],
           priority: 70,
           condition: (ctx) => {
-            if (ctx.player.hasField('mp')) {
-              const mp = ctx.player.fields.mp;
-              return ctx.player === ctx.game.currentPlayer && mp && mp.max !== null;
+            if (ctx.source.hasField('mp')) {
+              const mp = ctx.source.fields.mp;
+              return ctx.source === ctx.game.currentPlayer && mp && mp.max !== null;
             }
             return false;
           },
-          action: (ctx) => {
-            const mp = ctx.player.fields.mp;
+          action: async (ctx) => {
+            const mp = ctx.source.fields.mp;
             if (mp && mp.max !== null) {
               const old = mp.value;
-              ctx.player.modifyFieldValue('mp', mp.max);
+              await ctx.source.setFieldValue('mp', mp.max);
               if (old !== mp.value) {
-                ctx.game.log(`${ctx.player.name} 的 MP 恢复至 ${mp.max}`, 'mp');
+                ctx.game.log(`${ctx.source.name} 的 MP 恢复至 ${mp.max}`, 'mp');
               }
             }
           }
@@ -1271,9 +1443,9 @@
           triggers: ['draw'],
           priority: 50,
           condition: (ctx) => ctx.card && ctx.card.definition.hasKeyword('疲劳'),
-          action: (ctx) => {
-            ctx.game.dealDamage(ctx.player, 1);
-            ctx.game.log(`${ctx.player.name} 受到疲劳伤害！`, 'damage');
+          action: async (ctx) => {
+            await ctx.game.dealDamage(ctx.source, 1);
+            ctx.game.log(`${ctx.source.name} 受到疲劳伤害！`, 'damage');
           }
         });
 
@@ -1299,7 +1471,7 @@
         this.registerAbility('回合检查', {
           triggers: ['play_check'],
           priority: 100,
-          condition: (ctx) => ctx.game.currentPlayer !== ctx.player,
+          condition: (ctx) => ctx.game.currentPlayer !== ctx.source,
           action: (ctx) => {
             ctx.preventDefault('当前不是你的回合！');
           }
@@ -1312,7 +1484,7 @@
           condition: (ctx) => ctx.card && ctx.card.definition.hasCost(),
           action: (ctx) => {
             const cost = ctx.card.definition.getCost();
-            const currentMp = ctx.player.getFieldValue('mp');
+            const currentMp = ctx.source.getFieldValue('mp');
             if (currentMp < cost) {
               ctx.preventDefault(`${ctx.card.definition.name} 需要 ${cost} MP，当前只有 ${currentMp} MP`);
             }
@@ -1324,11 +1496,11 @@
           triggers: ['before_play'],
           priority: 90,
           condition: (ctx) => ctx.card && ctx.card.definition.hasCost(),
-          action: (ctx) => {
+          action: async (ctx) => {
             const cost = ctx.card.definition.getCost();
-            const currentMp = ctx.player.getFieldValue('mp');
-            ctx.player.setFieldValue('mp', currentMp - cost);
-            ctx.game.log(`${ctx.player.name} 消耗 ${cost} MP`, 'mp');
+            const currentMp = ctx.source.getFieldValue('mp');
+            await ctx.source.setFieldValue('mp', currentMp - cost);
+            ctx.game.log(`${ctx.source.name} 消耗 ${cost} MP`, 'mp');
           }
         });
       }
@@ -1339,21 +1511,48 @@
         }
       }
 
-      startTurn() {
+      async startTurn() {
         if (this.gameOver) return;
         this.turnCount++;
         this.log(`=== 第 ${this.turnCount} 回合 ===`, 'system');
         this.log(`当前行动: ${this.currentPlayer.name}`);
 
-        this.emit('turn_start', new AbilityContext(this, 'turn_start', this.currentPlayer, this.currentPlayer.opponent));
-        if (this.ui) this.ui.render();
+        await this.emit('turn_start', new AbilityContext(this, 'turn_start', this.currentPlayer, this.currentPlayer, this.currentPlayer.opponent));
+        if (this.ui) await this.ui.render();
       }
 
-      endTurn() {
+      async endTurn() {
         if (this.gameOver) return;
-        this.emit('turn_end', new AbilityContext(this, 'turn_end', this.currentPlayer, this.currentPlayer.opponent));
+        await this.emit('turn_end', new AbilityContext(this, 'turn_end', this.currentPlayer, this.currentPlayer, this.currentPlayer.opponent));
         this.currentPlayer = this.currentPlayer.opponent;
-        this.startTurn();
+        await this.startTurn();
+      }
+
+      /* ==================== 选项接口 ==================== */
+      async showOptions(options) {
+        if (!this.ui) return null;
+        return await this.ui.showOptions(options);
+      }
+
+      async selectCards(cards, min = 1, max = 1, title = '选择卡牌') {
+        if (!cards || cards.length === 0) return null;
+        return await this.showOptions({
+          type: 'cards', title, cards,
+          minSelect: min, maxSelect: max
+        });
+      }
+
+      async selectAbilities(abilities, min = 1, max = 1, title = '选择效果') {
+        if (!abilities || abilities.length === 0) return null;
+        return await this.showOptions({
+          type: 'items', title,
+          items: abilities.map((ab, i) => ({
+            id: i,
+            label: ab.name || `效果 ${i+1}`,
+            data: ab
+          })),
+          minSelect: min, maxSelect: max
+        });
       }
     }
 
@@ -1366,14 +1565,15 @@
         this.selectedCard = null;
       }
 
-      render() {
-        this.renderPlayer(this.game.player1, 'p1');
-        this.renderPlayer(this.game.player2, 'p2');
+      async render() {
+        await Promise.all([
+          this.renderPlayer(this.game.player1, 'p1'),
+          this.renderPlayer(this.game.player2, 'p2')
+        ]);
         this.renderCenter();
       }
 
-      renderPlayer(player, prefix) {
-        // 动态渲染角色所有字段
+      async renderPlayer(player, prefix) {
         const statsEl = document.getElementById(`${prefix}-stats`);
         statsEl.innerHTML = '';
         for (const [name, field] of Object.entries(player.fields)) {
@@ -1397,10 +1597,7 @@
           } else {
             valueStr = String(field.value);
           }
-          box.innerHTML = `
-        <div class="stat-label">${name}</div>
-        <div class="stat-value">${valueStr}</div>
-      `;
+          box.innerHTML = `<div class="stat-label">${name}</div><div class="stat-value">${valueStr}</div>`;
           statsEl.appendChild(box);
         }
 
@@ -1411,31 +1608,37 @@
         const isCurrent = this.game.currentPlayer === player && !this.game.gameOver;
         document.getElementById(`${prefix}-panel`).classList.toggle('active-turn', isCurrent);
 
+        // 预计算可打出卡牌
+        const playableCards = new Set();
+        if (isCurrent) {
+          for (const card of player.hand) {
+            const playCheckCtx = new AbilityContext(this.game, 'play_check', this.game.currentPlayer, player, player.opponent, card);
+            await this.game.emit('play_check', playCheckCtx);
+            if (!playCheckCtx.prevented) playableCards.add(card);
+          }
+        }
+
         const handEl = document.getElementById(`${prefix}-hand`);
         handEl.innerHTML = '';
         for (const card of player.hand) {
-          const el = this.createCardElement(card, player, true);
+          const el = this.createCardElement(card, player, true, playableCards.has(card));
           handEl.appendChild(el);
         }
 
         const fieldEl = document.getElementById(`${prefix}-field`);
         fieldEl.innerHTML = '';
         for (const card of player.field) {
-          const el = this.createCardElement(card, player, false);
+          const el = this.createCardElement(card, player, false, false);
           fieldEl.appendChild(el);
         }
       }
 
-      createCardElement(card, player, interactive) {
+      createCardElement(card, player, interactive, isPlayable) {
         const el = document.createElement('div');
         el.className = 'card';
-        let playable = false;
-        if (interactive) {
-          const playCheckCtx = new AbilityContext(this.game, 'play_check', player, player.opponent, card);
-          this.game.emit('play_check', playCheckCtx);
-          playable = !playCheckCtx.prevented;
-          if (playable) el.classList.add('playable');
-        } else {
+        if (interactive && isPlayable) {
+          el.classList.add('playable');
+        } else if (interactive) {
           el.classList.add('unusable');
         }
 
@@ -1464,14 +1667,13 @@
         return el;
       }
 
-      selectCard(card, player) {
+      async selectCard(card, player) {
         this.selectedCard = card;
-        this.render();
+        await this.render();
 
         const detail = document.getElementById('card-detail');
-        const playCheckCtx = new AbilityContext(this.game, 'play_check', player, player.opponent, card);
-        // 触发全局 play_check 能力（费用检查、回合检查等）
-        this.game.emit('play_check', playCheckCtx);
+        const playCheckCtx = new AbilityContext(this.game, 'play_check', this.game.currentPlayer, player, player.opponent, card);
+        await this.game.emit('play_check', playCheckCtx);
 
         const abilityDesc = card.definition.abilities.map((ab, i) => {
           return `<div style="margin:4px 0;font-size:0.85rem;opacity:0.9;">• ${ab.name || '能力' + (i + 1)}</div>`;
@@ -1529,11 +1731,157 @@
         document.body.appendChild(overlay);
       }
 
+      showErrorToast(message) {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+          position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+          background: #e74c3c; color: white; padding: 12px 24px;
+          border-radius: 8px; font-size: 0.9rem; z-index: 300;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-width: 80%;
+          word-break: break-word; text-align: center;
+          animation: slideDown 0.3s ease;
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.style.transition = 'opacity 0.5s';
+          toast.style.opacity = '0';
+          setTimeout(() => toast.remove(), 500);
+        }, 4000);
+      }
+
       viewZone(player, zone) {
         const arr = player.getZoneArray(zone);
         const names = arr.map(c => c.definition.name).join(', ') || '空';
         alert(`${player.name} 的${zone === 'deck' ? '抽牌堆' : zone === 'discard' ? '弃牌堆' : '除外堆'} (${arr.length}张):
 ${names}`);
+      }
+
+      /* ==================== 选项接口 ==================== */
+      async showOptions(options) {
+        return new Promise((resolve) => {
+          const overlay = document.createElement('div');
+          overlay.className = 'option-overlay';
+          overlay.id = 'option-overlay';
+
+          const modal = document.createElement('div');
+          modal.className = 'option-modal';
+
+          const title = document.createElement('h3');
+          title.textContent = options.title || '请选择';
+          modal.appendChild(title);
+
+          const hint = document.createElement('div');
+          hint.className = 'option-hint';
+          hint.textContent = options.maxSelect === 1 ? '点击选择一项' : `请选择 ${options.minSelect}~${options.maxSelect} 项`;
+          modal.appendChild(hint);
+
+          const container = document.createElement('div');
+          container.className = options.type === 'cards' ? 'option-cards' : 'option-list';
+
+          const selected = new Set();
+          const selectedCards = new Set();
+
+          const cleanup = () => { overlay.remove(); };
+          const doResolve = (val) => { cleanup(); resolve(val); };
+
+          if (options.type === 'cards') {
+            for (const card of options.cards) {
+              const el = this.createCardElement(card, card.owner, false, false);
+              el.style.cursor = 'pointer';
+              el.onclick = () => {
+                if (options.maxSelect === 1) {
+                  doResolve([card]);
+                  return;
+                }
+                if (selectedCards.has(card)) {
+                  selectedCards.delete(card);
+                  el.classList.remove('selected');
+                } else {
+                  if (selectedCards.size < options.maxSelect) {
+                    selectedCards.add(card);
+                    el.classList.add('selected');
+                  }
+                }
+                confirmBtn.disabled = selectedCards.size < options.minSelect;
+                confirmBtn.style.opacity = confirmBtn.disabled ? '0.4' : '1';
+              };
+              container.appendChild(el);
+            }
+          } else {
+            for (const item of options.items) {
+              const btn = document.createElement('div');
+              btn.className = 'option-item';
+              btn.textContent = item.label;
+              btn.onclick = () => {
+                if (options.maxSelect === 1) {
+                  doResolve([item]);
+                  return;
+                }
+                if (selected.has(item.id)) {
+                  selected.delete(item.id);
+                  btn.classList.remove('selected');
+                } else {
+                  if (selected.size < options.maxSelect) {
+                    selected.add(item.id);
+                    btn.classList.add('selected');
+                  }
+                }
+                confirmBtn.disabled = selected.size < options.minSelect;
+                confirmBtn.style.opacity = confirmBtn.disabled ? '0.4' : '1';
+              };
+              container.appendChild(btn);
+            }
+          }
+
+          modal.appendChild(container);
+
+          const btnRow = document.createElement('div');
+          btnRow.style.textAlign = 'center';
+          btnRow.style.flexShrink = '0';
+          btnRow.style.marginTop = '8px';
+
+          const confirmBtn = document.createElement('button');
+          confirmBtn.textContent = '确认';
+          confirmBtn.style.marginRight = '8px';
+          confirmBtn.style.padding = '10px 24px';
+          confirmBtn.style.background = 'var(--playable)';
+          confirmBtn.style.border = 'none';
+          confirmBtn.style.borderRadius = '6px';
+          confirmBtn.style.color = 'white';
+          confirmBtn.style.cursor = 'pointer';
+          confirmBtn.style.fontWeight = 'bold';
+          confirmBtn.style.display = options.maxSelect === 1 ? 'none' : 'inline-block';
+          confirmBtn.disabled = true;
+          confirmBtn.style.opacity = '0.4';
+
+          confirmBtn.onclick = () => {
+            if (options.type === 'cards') {
+              if (selectedCards.size < options.minSelect) return;
+              doResolve(Array.from(selectedCards));
+            } else {
+              if (selected.size < options.minSelect) return;
+              doResolve(options.items.filter(item => selected.has(item.id)));
+            }
+          };
+
+          const cancelBtn = document.createElement('button');
+          cancelBtn.textContent = '取消';
+          cancelBtn.style.padding = '10px 24px';
+          cancelBtn.style.background = 'transparent';
+          cancelBtn.style.border = '1px solid var(--border)';
+          cancelBtn.style.borderRadius = '6px';
+          cancelBtn.style.color = 'var(--text)';
+          cancelBtn.style.cursor = 'pointer';
+          cancelBtn.onclick = () => doResolve(null);
+
+          btnRow.appendChild(confirmBtn);
+          btnRow.appendChild(cancelBtn);
+          modal.appendChild(btnRow);
+
+          overlay.appendChild(modal);
+          document.body.appendChild(overlay);
+        });
       }
     }
 
@@ -1619,7 +1967,6 @@ ${names}`);
     }
 
     function serializeDeck(deck) {
-      // 深拷贝并递归将函数转为字符串
       function deepCopyAndStringify(obj) {
         if (obj === null || typeof obj !== 'object') {
           if (typeof obj === 'function') return obj.toString().replace(/\s+/g, " ").trim();
@@ -1656,8 +2003,8 @@ ${names}`);
     const defaultDeck = {
       name: '基础套牌',
       fieldDefinitions: {
-        hp: { type: 'value', max: 20, min: 0 },
-        mp: { type: 'value', max: 3, min: 0 },
+        hp: { type: 'value', max: 100, min: 0 },
+        mp: { type: 'value', max: 5, min: 0 },
         先攻: { type: 'value' },
         护甲: { type: 'value' },
         炸弹: { type: 'counter' }
@@ -1667,14 +2014,16 @@ ${names}`);
           triggers: ['hp_change'],
           priority: 10,
           condition: (ctx) => ctx.target.getFieldValue('护甲') > 0,
-          action: (ctx) => {
+          action: async (ctx) => {
             if (ctx.data.new < ctx.data.old) {
-              if (ctx.data.old - ctx.data.new > ctx.target.getFieldValue('护甲')) {
-                ctx.target.modifyFieldValue('hp', ctx.target.getFieldValue('护甲'));
-                ctx.target.setFieldValue('护甲', 0);
+              const armor = ctx.target.getFieldValue('护甲');
+              const dmg = ctx.data.old - ctx.data.new;
+              if (dmg > armor) {
+                await ctx.target.modifyFieldValue('hp', armor);
+                await ctx.target.setFieldValue('护甲', 0);
               } else {
-                ctx.target.modifyFieldValue('护甲', ctx.data.new - ctx.data.old);
-                ctx.target.setFieldValue('hp', ctx.data.old);
+                await ctx.target.modifyFieldValue('护甲', ctx.data.new - ctx.data.old);
+                await ctx.target.setFieldValue('hp', ctx.data.old);
               }
             }
           }
@@ -1683,37 +2032,37 @@ ${names}`);
           triggers: ['after_play'],
           priority: 5,
           condition: (ctx) => true,
-          action: (ctx) => {
-            const bombField = ctx.player.fields['炸弹'];
+          action: async (ctx) => {
+            const bombField = ctx.source.fields['炸弹'];
             if (!bombField || bombField.type !== 'counter') return;
             const values = bombField.values || {};
             for (const effectId of Object.keys(values)) {
               const value = values[effectId];
               if (value > 0) {
-                ctx.player.modifyCounter('炸弹', effectId, -1);
-                if (ctx.player.getCounter('炸弹', effectId) <= 0) {
-                  ctx.player.removeCounter('炸弹', effectId);
-                  ctx.game.dealDamage(ctx.player, 10);
-                  ctx.game.log(`${ctx.player.name} 的炸弹爆炸了！受到10点伤害`, 'damage');
+                ctx.source.modifyCounter('炸弹', effectId, -1);
+                if (ctx.source.getCounter('炸弹', effectId) <= 0) {
+                  ctx.source.removeCounter('炸弹', effectId);
+                  await ctx.game.dealDamage(ctx.source, 25);
+                  ctx.game.log(`${ctx.source.name} 的炸弹爆炸了！受到25点伤害`, 'damage');
                 } else {
-                  ctx.game.log(`${ctx.player.name} 的炸弹倒计时: ${ctx.player.getCounter('炸弹', effectId)}`, 'system');
+                  ctx.game.log(`${ctx.source.name} 的炸弹倒计时: ${ctx.source.getCounter('炸弹', effectId)}`, 'system');
                 }
               }
             }
           }
         }
       },
-      playerBindings: { hp: 20, mp: 3, 先攻: 1 },
+      playerBindings: { hp: 100, mp: 5, 先攻: 5 },
       cards: [
         {
           name: '攻击',
           fields: [{ name: 'cost', type: 'value', value: 1 }],
-          description: '造成3点伤害',
+          description: '造成6点伤害',
           abilities: [
             {
               triggers: ['on_play'],
-              action: (ctx) => {
-                ctx.game.dealDamage(ctx.target, 3);
+              action: async (ctx) => {
+                await ctx.game.dealDamage(ctx.target, 6);
               }
             }
           ],
@@ -1722,12 +2071,12 @@ ${names}`);
         {
           name: '恢复',
           fields: [{ name: 'cost', type: 'value', value: 1 }],
-          description: '恢复2点生命',
+          description: '恢复5点生命',
           abilities: [
             {
               triggers: ['on_play'],
-              action: (ctx) => {
-                ctx.game.heal(ctx.player, 2);
+              action: async (ctx) => {
+                await ctx.game.heal(ctx.source, 5);
               }
             }
           ],
@@ -1740,8 +2089,8 @@ ${names}`);
           abilities: [
             {
               triggers: ['on_play'],
-              action: (ctx) => {
-                ctx.player.setFieldValue('mp', ctx.player.getFieldValue('mp') + 2);
+              action: async (ctx) => {
+                await ctx.source.setFieldValue('mp', ctx.source.getFieldValue('mp') + 2);
               }
             }
           ],
@@ -1750,12 +2099,12 @@ ${names}`);
         {
           name: '火球',
           fields: [{ name: 'cost', type: 'value', value: 2 }],
-          description: '造成5点伤害',
+          description: '造成15点伤害',
           abilities: [
             {
               triggers: ['on_play'],
-              action: (ctx) => {
-                ctx.game.dealDamage(ctx.target, 5);
+              action: async (ctx) => {
+                await ctx.game.dealDamage(ctx.target, 15);
               }
             }
           ],
@@ -1764,12 +2113,12 @@ ${names}`);
         {
           name: '护盾',
           fields: [{ name: 'cost', type: 'value', value: 1 }],
-          description: '获得3点护甲',
+          description: '获得8点护甲',
           abilities: [
             {
               triggers: ['on_play'],
-              action: (ctx) => {
-                ctx.player.modifyFieldValue('护甲', 3);
+              action: async (ctx) => {
+                await ctx.source.modifyFieldValue('护甲', 8);
               }
             }
           ],
@@ -1798,29 +2147,33 @@ ${names}`);
     let game;
     let ui;
 
-    function startGame() {
+    async function startGame() {
       document.getElementById('setup').style.display = 'none';
       document.getElementById('game').style.display = 'grid';
 
       game = new GameEngine();
       ui = new UI(game);
 
+      document.getElementById('end-turn-btn').onclick = async () => {
+        if (game && !game.gameOver) await game.endTurn();
+      };
+
       const d1 = loadedDeck1 || defaultDeck;
       const d2 = loadedDeck2 || loadedDeck1 || defaultDeck;
-      game.startGame(d1, d2);
-      ui.render();
+      await game.startGame(d1, d2);
+      await ui.render();
     }
 
-    function playSelectedCard() {
+    async function playSelectedCard() {
       if (!ui.selectedCard) return;
       const card = ui.selectedCard;
       const player = card.owner;
-      const success = game.playCard(player, card);
+      const success = await game.playCard(player, card);
       if (success) {
         ui.selectedCard = null;
         document.getElementById('card-detail').innerHTML = '<p style="opacity:0.6;text-align:center;margin-top:30px;">点击手牌查看详情</p>';
       }
-      ui.render();
+      await ui.render();
     }
   </script>
 </body>
