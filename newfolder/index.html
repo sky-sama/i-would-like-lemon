@@ -21,12 +21,7 @@
       --keyword: #9b59b6;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+* { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
       color: var(--text);
@@ -44,29 +39,15 @@
       gap: 20px;
       padding: 20px;
     }
-
-    #setup h1 {
-      font-size: 2.5rem;
-      color: var(--accent);
-      text-align: center;
-    }
-
-    #setup p {
-      text-align: center;
-      max-width: 600px;
-      line-height: 1.6;
-      opacity: 0.8;
-    }
-
+#setup h1 { font-size: 2.5rem; color: var(--accent); text-align: center; }
+#setup p { text-align: center; max-width: 600px; line-height: 1.6; opacity: 0.8; }
     #setup .btn-group {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
       justify-content: center;
     }
-
-    #setup button,
-    #setup label {
+#setup button, #setup label {
       padding: 12px 32px;
       font-size: 1.1rem;
       background: var(--accent);
@@ -77,17 +58,8 @@
       transition: transform 0.2s, background 0.2s;
       display: inline-block;
     }
-
-    #setup button:hover,
-    #setup label:hover {
-      transform: scale(1.05);
-      background: #ff6b81;
-    }
-
-    #setup label input {
-      display: none;
-    }
-
+#setup button:hover, #setup label:hover { transform: scale(1.05); background: #ff6b81; }
+#setup label input { display: none; }
     #setup .file-hint {
       font-size: 0.85rem;
       opacity: 0.6;
@@ -128,6 +100,7 @@
       transition: border-color 0.3s;
       min-width: 0;
       overflow: hidden;
+  max-height: 100%;
     }
 
     .player-panel.active-turn {
@@ -170,6 +143,8 @@
       font-size: 0.9rem;
       flex-shrink: 0;
       flex-wrap: wrap;
+  max-height: 80px;
+  overflow-y: auto;
     }
 
     .stat-box {
@@ -197,6 +172,7 @@
       gap: 8px;
       justify-content: center;
       flex-shrink: 0;
+  flex-wrap: wrap;
     }
 
     .zone-pile {
@@ -240,9 +216,9 @@
       overflow-x: auto;
       overflow-y: hidden;
       padding: 6px;
-      min-height: 100px;
-      max-height: 120px;
-      background: rgba(0, 0, 0, 0.2);
+  min-height: 80px;
+  max-height: 140px;
+  background: rgba(0,0,0,0.2);
       border-radius: 8px;
       border: 1px dashed var(--border);
       align-items: flex-start;
@@ -264,13 +240,14 @@
       overflow-x: auto;
       overflow-y: hidden;
       padding: 6px;
-      min-height: 120px;
-      max-height: 140px;
-      background: rgba(0, 0, 0, 0.2);
+  min-height: 100px;
+  max-height: 160px;
+  background: rgba(0,0,0,0.2);
       border-radius: 8px;
       border: 1px dashed var(--border);
       align-items: flex-start;
       flex-shrink: 0;
+  flex: 1;
     }
 
     .hand-area:empty::after {
@@ -378,6 +355,7 @@
       gap: 10px;
       min-width: 0;
       overflow: hidden;
+  max-height: 100%;
     }
 
     .game-info {
@@ -469,18 +447,12 @@
       border-radius: 12px;
       border: 2px solid var(--border);
       padding: 10px;
-      min-height: 100px;
-      max-height: 180px;
+  min-height: 80px;
+  max-height: 200px;
       overflow-y: auto;
       flex-shrink: 0;
-    }
-
-    .card-detail h3 {
-      color: var(--accent);
-      margin-bottom: 6px;
-      font-size: 1rem;
-    }
-
+}
+.card-detail h3 { color: var(--accent); margin-bottom: 6px; font-size: 1rem; }
     .card-detail .detail-row {
       display: flex;
       justify-content: space-between;
@@ -565,53 +537,59 @@
 
     @media (max-width: 900px) {
       #game {
-        grid-template-columns: 1fr 280px 1fr;
+    grid-template-columns: 1fr 240px 1fr;
         gap: 8px;
         padding: 6px;
       }
-
-      .card {
-        width: 80px;
-        min-width: 80px;
-        height: 110px;
-      }
-
-      .card-name {
-        font-size: 0.8rem;
-      }
+  .card { width: 80px; min-width: 80px; height: 110px; }
+  .card-name { font-size: 0.8rem; }
+  .stats { max-height: 70px; }
+  .hand-area { max-height: 140px; }
     }
 
     @media (max-width: 700px) {
       #game {
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: auto auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
         grid-template-areas:
-          "p1 p2"
-          "center center";
+      "p1"
+      "center"
+      "p2";
         overflow-y: auto;
         height: auto;
         min-height: 100vh;
-      }
-
-      #p1-panel {
-        grid-area: p1;
-      }
-
-      #p2-panel {
-        grid-area: p2;
-      }
-
-      .center-panel {
-        grid-area: center;
-      }
-
-      .hand-area,
-      .field-area {
+    gap: 8px;
+    padding: 6px;
+  }
+  #p1-panel { grid-area: p1; max-height: 50vh; }
+  #p2-panel { grid-area: p2; max-height: 50vh; }
+  .center-panel { grid-area: center; }
+  .hand-area, .field-area { 
         flex-wrap: wrap;
         overflow-x: hidden;
         overflow-y: auto;
-        max-height: none;
+    max-height: 140px;
+  }
+  .card { width: 75px; min-width: 75px; height: 105px; }
+  .stats { max-height: 60px; }
+}
+@media (min-width: 1400px) {
+  #game {
+    grid-template-columns: 1fr 400px 1fr;
+    gap: 16px;
+    padding: 14px;
+  }
+  .card { width: 100px; min-width: 100px; height: 130px; }
+}
+
+@media (min-width: 1800px) {
+  #game {
+    grid-template-columns: 1fr 480px 1fr;
+    gap: 20px;
+    padding: 18px;
       }
+  .card { width: 110px; min-width: 110px; height: 145px; }
+  .hand-area { max-height: 180px; }
     }
   </style>
 </head>
