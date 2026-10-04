@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>蛇箱 · 八关试炼</title>
+<style>
+  :root { color-scheme: dark; --cell: 42px; --green: #8ddeab; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 22px 14px 32px; background: #191c25; color: #edf0f6; font: 14px/1.55 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  main { max-width: 860px; margin: auto; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 25px; margin: 0; letter-spacing: 2px; } h1 small { font-size: 12px; letter-spacing: 1px; color: #9fa9b8; font-weight: normal; }
+  #progress { color: var(--green); white-space: nowrap; font-size: 12px; }
+  button { border: 1px solid #485269; border-radius: 7px; background: #2a3141; color: #ecf0f7; padding: 7px 12px; font: inherit; cursor: pointer; touch-action: manipulation; }
+  button:hover { background: #39475c; } button:focus-visible { outline: 2px solid #95ebbc; outline-offset: 3px; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0 16px; }
+  #tabs button { flex: 1 1 110px; font-size: 12px; } #tabs .active { background: #264b3c; border-color: #8edcab; color: #d6ffe7; }
+  #tabs .solved::after { content: ' ✓'; color: #8ee8ad; }
+  .heading { display: flex; align-items: center; gap: 12px; } h2 { margin: 0; font-size: 19px; } .chip { font-size: 12px; padding: 2px 8px; border-radius: 20px; background: #31394c; color: #afc2dc; }
+  #description { color: #bbc5d6; min-height: 44px; margin: 8px 0; }
+  #mechanics { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  #status { display: flex; flex-wrap: wrap; gap: 7px 22px; margin-bottom: 8px; color: #b0bdd1; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #st-red { color: #ffb0a3; } #theme { color: var(--green); }
+  #board-scroll { overflow-x: auto; margin: 8px 0 0; padding: 2px; }
+  #board-wrap { position: relative; width: max-content; margin: auto; }
+  #board { display: grid; gap: 2px; padding: 5px; border-radius: 9px; background: #0e121b; border: 1px solid #46536a; user-select: none; }
+  .cell { width: var(--cell); height: var(--cell); position: relative; display: flex; justify-content: center; align-items: center; background: #ddd9c9; border-radius: 3px; font-size: calc(var(--cell) * .67); line-height: 1; }
+  .cell.wall { background: #58637a; font-size: calc(var(--cell) * .58); }
+  .cell.exit { background: #f4d879; box-shadow: inset 0 0 0 2px #d7a63a; }
+  .cell .bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: .65; font-size: calc(var(--cell) * .55); }
+  .cell .fg { position: relative; z-index: 1; } .cell .arr { position: absolute; z-index: 2; bottom: 1px; right: 1px; font-size: calc(var(--cell) * .36); color: #10291d; text-shadow: 0 0 3px white; }
+  .cell.npc .arr { color: #5b3300; } .cell .tail { position: absolute; z-index: 3; top: 2px; left: 2px; padding: 1px 2px; background: #fffdebc9; border-radius: 3px; font-size: 9px; color: #243425; }
+  .cell.hot { box-shadow: inset 0 0 0 3px #f06150; } .cell.cut-flash { animation: bite .6s ease-out; }
+  @keyframes bite { 0% { outline: 3px solid #ff704f; transform: scale(1.06); } 100% { outline: 0 solid transparent; transform: scale(1); } }
+  #win-overlay { position: absolute; inset: 0; z-index: 5; background: #11231ce8; border-radius: 8px; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 8px; gap: 8px; display: none; }
+  #win-overlay.show { display: flex; } #win-txt { color: #cbfadb; font-size: 18px; } #win-detail { color: #becdc3; font-size: 12px; }
+  .toolbar { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  #event-log { min-height: 25px; text-align: center; color: #b9d4bf; font-size: 12px; }
+  #legend { text-align: center; color: #b9c3d3; font-size: 12px; padding: 5px; }
+  details { margin-top: 10px; border: 1px solid #374154; background: #202633; border-radius: 8px; padding: 10px 14px; }
+  summary { cursor: pointer; color: #d1dceb; } details p { margin: 8px 0; color: #b7c6d8; font-size: 13px; }
+  #hints { color: #d8e4d9; margin: 10px 0; padding-left: 22px; } #solution { overflow-wrap: anywhere; letter-spacing: 3px; color: #a9d4b4; }
+  #demo-state { color: #b7c6d8; margin-left: 10px; font-size: 12px; }
+  #error { display: none; background: #592e36; border: 1px solid #c26b78; border-radius: 7px; padding: 12px; white-space: pre-wrap; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 43px); justify-content: center; gap: 5px; margin: 12px 0; } .dpad button { padding: 8px 0; }
+  footer { color: #8e9db3; text-align: center; font-size: 12px; margin: 15px 0 0; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>🐍📦 蛇箱 <small>SNAKE BOX</small></h1><span id="progress">八关试炼</span></header>
+  <div id="error" role="alert"></div>
+  <nav id="tabs" aria-label="选择关卡"></nav>
+  <section aria-labelledby="level-title">
+    <div class="heading"><h2 id="level-title"></h2><span id="difficulty" class="chip"></span></div>
+    <p id="description"></p>
+    <div id="mechanics" aria-label="本关组合机制"></div>
+    <div id="status"><span id="st-moves"></span><span id="st-len"></span><span id="st-npcs"></span><span id="st-red"></span><span id="theme"></span></div>
+    <div id="board-scroll"><div id="board-wrap">
+      <div id="board" role="group" aria-label="蛇箱棋盘"></div>
+      <div id="win-overlay"><strong id="win-txt"></strong><span id="win-detail"></span><button id="btn-next">下一关 (Enter)</button></div>
+    </div></div>
+    <div id="legend">🟢 你的蛇头 · 🟩 你的身体 · 🟠 蛇箱头 · 🟨 蛇箱身体 · 📦 普通箱 · 🎯 出口<br>箭头表示存储的前方；「尾」标记是尾端，生长时朝外判定取箭头的反向。</div>
+    <div class="toolbar"><button id="btn-undo">↶ 撤销 Z</button><button id="btn-restart">↻ 重开 R</button><button id="btn-hint">显示提示</button></div>
+    <div id="event-log" aria-live="polite">方向键或 WASD 开始。</div>
+    <div class="dpad" aria-label="触屏方向键"><span></span><button data-dir="U" aria-label="上">↑</button><span></span><button data-dir="L" aria-label="左">←</button><button data-dir="D" aria-label="下">↓</button><button data-dir="R" aria-label="右">→</button></div>
+    <ol id="hints"></ol>
+    <details id="demo"><summary>查看主题攻略 / 逐步示范（含剧透）</summary>
+      <p>这是一条经过验证的路线，不一定是最短解；第5关的主题路线会实际自咬并掉落尾部。通关条件始终只是你的蛇头到出口。</p>
+      <p id="solution"></p>
+      <button id="btn-demo-start">重开并开始逐步示范</button> <button id="btn-demo-step" disabled>执行下一步</button><span id="demo-state"></span>
+    </details>
+    <details><summary>蛇箱规则速查</summary>
+      <p>非玩家蛇箱不会自行行动。从尾巴指向外侧的位置向内推，它按头的箭头蛇行；其他位置推动时，整条蛇作为异形箱平移。普通箱子也能传递推动。</p>
+      <p>能推先推，推不动的箱子或身体才会被蛇头吃掉。蛇头不能吃蛇头。自咬按身体本步移位后的棋盘判定；被咬点之后没有头的身体变回普通箱子。红温属于各自蛇头，每吃一次入队一次。</p>
+      <p>生长顺序：尾前空 → 头前空 → 尾前可推 → 尾侧空 → 头前可推 → 头侧空 → 尾侧可推 → 头侧可推。可推先试推出障碍，失败再试反向推自己；失败的红温保留，但不会挡住其他蛇头的生长。</p>
+      <p>失败移动回滚整个试探。Z 撤销包含其他蛇的位置、方向、被吞箱和红温队列；自己的下一节所在方向不能原地掉头。可以从空出来的旧尾格走入。</p>
+    </details>
+  </section>
+  <footer>方向键 / WASD 移动 · Z 撤销 · R 重开 · 1–8 选关 · Enter 下一关<br>关卡数据在 levels.js，修改后刷新即可；本地双击或 python deploy.py 均可运行。</footer>
+</main>
+<script src="levels.js"></script>
+<script>
+// ===ENGINE START===
+(function (root) {
+  'use strict';
+  const DIRS = { U: { x: 0, y: -1 }, R: { x: 1, y: 0 }, D: { x: 0, y: 1 }, L: { x: -1, y: 0 } };
+  const ORDER = ['U', 'R', 'D', 'L'];
+  const opp = d => ORDER[(ORDER.indexOf(d) + 2) % 4];
+  const rightOf = d => ORDER[(ORDER.indexOf(d) + 1) % 4];
+  const leftOf = d => ORDER[(ORDER.indexOf(d) + 3) % 4];
+  const key = (x, y) => `${x},${y}`;
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const snapshot = state => JSON.stringify(state);
+  function restore(state, snap) { Object.keys(state).forEach(k => delete state[k]); Object.assign(state, typeof snap === 'string' ? JSON.parse(snap) : clone(snap)); }
+  function getSnake(state, id = state.playerId) { return state.snakes.find(s => s.id === id); }
+  function head(state, id = state.playerId) { return getSnake(state, id).segments[0]; }
+  function direction(a, b) { return ORDER.find(d => a.x + DIRS[d].x === b.x && a.y + DIRS[d].y === b.y); }
+  function blockedTerrain(state, x, y) { return x < 0 || y < 0 || x >= state.width || y >= state.height || state.walls.includes(key(x, y)); }
+  function context() { return { active: new Set(), ghosts: new Set(), reservations: [], budget: { left: 14000 }, depth: 0 }; }
+  function extend(ctx, owner, ghosts = [], reservations = []) {
+    return { active: new Set([...ctx.active, owner]), ghosts: new Set([...ctx.ghosts, ...ghosts]), reservations: [...ctx.reservations, ...reservations], budget: ctx.budget, depth: ctx.depth + 1 };
+  }
+  function occupant(state, x, y, ctx) {
+    for (const s of state.snakes) for (let i = 0; i < s.segments.length; i++) {
+      const seg = s.segments[i];
+      if (seg.x === x && seg.y === y && !(ctx && ctx.ghosts.has(seg.id))) return { kind: i ? 'body' : 'head', owner: s.id, id: seg.id, index: i, x, y };
+    }
+    const b = state.boxes.find(b => b.x === x && b.y === y);
+    return b ? { kind: 'box', owner: b.id, id: b.id, x, y } : null;
+  }
+  function reserved(ctx, x, y, owner) { return ctx && ctx.reservations.some(r => r.x === x && r.y === y && r.owner !== owner); }
+  function emptyCell(state, x, y, ctx, owner) { return !blockedTerrain(state, x, y) && !reserved(ctx, x, y, owner) && !occupant(state, x, y, ctx); }
+  const good = () => ({ ok: true });
+  const bad = (reason, turns = []) => ({ ok: false, reason, turns });
+  function atomic(state, fn) {
+    const draft = clone(state), result = fn(draft);
+    if (result.ok) restore(state, draft);
+    return result;
+  }
+  function tick(ctx) {
+    if (--ctx.budget.left < 0 || ctx.depth > 60) throw new Error('推动循环过深，本步已安全撤回。');
+  }
+  function record(state, type, data = {}) {
+    state.events.push({ type, ...data });
+    if (Object.prototype.hasOwnProperty.call(state.stats, type)) state.stats[type]++;
+  }
+  function parseLevel(input) {
+    const lv = typeof input === 'string' || Array.isArray(input) ? { map: input } : input;
+    if (!lv || !lv.map) throw new Error('关卡缺少 map。');
+    const rows = Array.isArray(lv.map) ? lv.map : lv.map.replace(/\r/g, '').split('\n');
+    const width = rows[0].length, height = rows.length;
+    if (!width || rows.some(r => r.length !== width)) throw new Error('地图每一行必须等宽。');
+    const state = { levelId: lv.id || 'fixture', width, height, walls: [], wallEntries: {}, exits: [], playerId: 'player', snakes: [], boxes: [], heat: [], nextHeat: 1, moves: 0, won: false, events: [], stats: { pushes: 0, rigidPushes: 0, npcWalks: 0, eats: 0, cuts: 0, selfCuts: 0, detached: 0, growths: 0, reverseGrowths: 0, headTurns: 0 }, mass: 0 };
+    const playerChars = { '@': 'R', '>': 'R', '^': 'U', '<': 'L', v: 'D' };
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const c = rows[y][x];
+      if (c === '#') state.walls.push(key(x, y));
+      else if (playerChars[c]) state.snakes.push({ id: 'player', name: '你', player: true, segments: [{ id: 'player:head', x, y, dir: playerChars[c], entry: null }] });
+      else if (!'. BX*'.includes(c)) throw new Error(`地图字符 ${c} 不受支持 (${x},${y})。`);
+      if (c === 'B' || c === '*') state.boxes.push({ id: `box:${x}:${y}`, x, y, dir: 'U', entry: null });
+      if (c === 'X' || c === '*') state.exits.push({ x, y, carrier: null });
+    }
+    if (state.snakes.length !== 1) throw new Error('关卡必须有且仅有一个玩家蛇头。');
+    for (const [i, def] of (lv.snakes || lv.npcs || []).entries()) {
+      const id = def.id || `npc-${i + 1}`, positions = def.segments || def.body;
+      if (!positions || !positions.length) throw new Error('NPC 蛇必须至少有一个蛇头。');
+      const segments = positions.map((p, j) => ({ id: `${id}:${j}`, x: Array.isArray(p) ? p[0] : p.x, y: Array.isArray(p) ? p[1] : p.y, dir: Array.isArray(p) ? p[2] : p.dir, entry: Array.isArray(p) ? null : p.entry || null }));
+      for (let j = 0; j < segments.length; j++) segments[j].dir = segments[j].dir || (j ? direction(segments[j], segments[j - 1]) : def.dir || 'R');
+      state.snakes.push({ id, name: def.name || `蛇箱 ${i + 1}`, player: false, segments });
+    }
+    state.mass = mass(state);
+    assertValid(state);
+    return state;
+  }
+  function mass(state) { return state.boxes.length + state.heat.length + state.snakes.reduce((n, s) => n + s.segments.length, 0); }
+  function assertValid(state) {
+    const ids = new Set(), cells = new Set(), snakeIds = new Set();
+    function entity(e, onBoard = true) {
+      if (!e.id || ids.has(e.id)) throw new Error(`实体标识重复：${e.id}`);
+      ids.add(e.id);
+      if (!DIRS[e.dir]) throw new Error(`方向无效：${e.id}/${e.dir}`);
+      if (!onBoard) return;
+      if (!Number.isInteger(e.x) || !Number.isInteger(e.y) || blockedTerrain(state, e.x, e.y)) throw new Error(`实体越界或位于墙上：${e.id}@${e.x},${e.y}`);
+      const k = key(e.x, e.y);
+      if (cells.has(k)) throw new Error(`实体重叠：${k}`);
+      cells.add(k);
+    }
+    for (const s of state.snakes) {
+      if (snakeIds.has(s.id) || !s.segments.length) throw new Error(`蛇结构无效：${s.id}`);
+      snakeIds.add(s.id);
+      s.segments.forEach((seg, i) => {
+        entity(seg);
+        if (i && !direction(seg, s.segments[i - 1])) throw new Error(`蛇身断链：${s.id} 第${i}节`);
+      });
+    }
+    state.boxes.forEach(b => entity(b));
+    const heatIds = new Set();
+    for (const h of state.heat) {
+      if (heatIds.has(h.id) || !snakeIds.has(h.snakeId)) throw new Error('红温队列归属无效。');
+      heatIds.add(h.id); entity(h.box, false);
+    }
+    if (!snakeIds.has(state.playerId)) throw new Error('玩家蛇丢失。');
+    if (state.mass !== mass(state)) throw new Error(`实体质量不守恒：${state.mass} → ${mass(state)}`);
+    return true;
+  }
+  function getCarrierPosition(state, carrier) {
+    if (!carrier) return null;
+    if (carrier.kind === 'wall') return { x: carrier.x, y: carrier.y, entry: state.wallEntries[key(carrier.x, carrier.y)] || null };
+    const entities = [...state.boxes, ...state.snakes.flatMap(s => s.segments)];
+    return entities.find(e => e.id === carrier.id) || null;
+  }
+  // 消耗的是实体本身；被吃箱的标识/入口属性在队列与新身体之间保留。
+  function eat(state, eaterId, target, face) {
+    if (!target || target.kind === 'head') return false;
+    let food;
+    if (target.kind === 'box') {
+      const index = state.boxes.findIndex(b => b.id === target.id);
+      if (index < 0) return false;
+      food = state.boxes.splice(index, 1)[0];
+    } else {
+      const victim = getSnake(state, target.owner), index = victim.segments.findIndex(s => s.id === target.id);
+      if (index <= 0) return false;
+      const removed = victim.segments.splice(index);
+      food = removed.shift();
+      state.boxes.push(...removed);
+      record(state, 'cuts', { snakeId: victim.id, eaterId, x: food.x, y: food.y, detached: removed.length });
+      state.stats.detached += removed.length;
+      if (victim.id === eaterId) record(state, 'selfCuts', { snakeId: eaterId, x: food.x, y: food.y, detached: removed.length, eatenId: food.id });
+    }
+    const h = head(state, eaterId); h.dir = face;
+    state.heat.push({ id: `heat:${state.nextHeat++}`, snakeId: eaterId, box: { ...food }, source: face });
+    record(state, 'eats', { snakeId: eaterId, boxId: food.id, x: food.x, y: food.y });
+    return true;
+  }
+  function pushAt(state, x, y, d, ctx, requester) {
+    tick(ctx);
+    if (blockedTerrain(state, x, y)) return bad('wall');
+    if (reserved(ctx, x, y, requester)) return bad('reserved');
+    const o = occupant(state, x, y, ctx);
+    if (!o) return good();
+    if (ctx.active.has(o.owner)) return bad('self-block');
+    if (o.kind === 'box') return moveBox(state, o.id, d, ctx);
+    const s = getSnake(state, o.owner), tail = s.segments[s.segments.length - 1];
+    // pusher 在 outward=opp(tail.dir) 那侧；向内推的 d 等于 tail.dir。
+    if (s.segments.length > 1 && o.id === tail.id && d === tail.dir) return snakeWalk(state, s.id, s.segments[0].dir, ctx, 'tail');
+    return rigidMove(state, s.id, d, ctx);
+  }
+  function moveBox(state, boxId, d, ctx) {
+    return atomic(state, st => {
+      const b = st.boxes.find(b => b.id === boxId);
+      if (!b) return good();
+      const target = { x: b.x + DIRS[d].x, y: b.y + DIRS[d].y };
+      if (blockedTerrain(st, target.x, target.y) || reserved(ctx, target.x, target.y, boxId)) return bad('blocked-box');
+      const next = extend(ctx, boxId);
+      const result = pushAt(st, target.x, target.y, d, next, boxId);
+      if (result.ok && emptyCell(st, target.x, target.y, next, boxId)) {
+        const moving = st.boxes.find(b => b.id === boxId);
+        if (moving) { moving.x = target.x; moving.y = target.y; record(st, 'pushes', { boxId, dir: d }); }
+        return good();
+      }
+      const o = occupant(st, target.x, target.y, next);
+      if (o && o.kind === 'head' && !result.ok) {
+        // 被推入无法推动蛇头的箱子被该蛇头吞食。
+        const source = st.boxes.find(b => b.id === boxId);
+        if (source && eat(st, o.owner, { kind: 'box', id: boxId }, opp(d))) return good();
+      }
+      return result.ok ? bad('destination-occupied') : result;
+    });
+  }
+  function enterHead(state, snakeId, x, y, d, ctx) {
+    if (blockedTerrain(state, x, y) || reserved(ctx, x, y, snakeId)) return bad('wall');
+    const result = pushAt(state, x, y, d, ctx, snakeId);
+    if (result.ok && emptyCell(state, x, y, ctx, snakeId)) return good();
+    const o = occupant(state, x, y, ctx);
+    if (o && o.kind !== 'head' && !result.ok && eat(state, snakeId, o, d)) return good();
+    if (o && o.kind === 'head') return bad('head-head', [{ snakeId, dir: d }, { snakeId: o.owner, dir: opp(d) }]);
+    return result.ok ? bad('destination-occupied') : result;
+  }
+  function snakeWalk(state, snakeId, d, ctx = context(), cause = 'player') {
+    tick(ctx);
+    if (ctx.active.has(snakeId)) return bad('self-block');
+    return atomic(state, st => {
+      let sn = getSnake(st, snakeId), h = sn.segments[0];
+      const tx = h.x + DIRS[d].x, ty = h.y + DIRS[d].y;
+      if (sn.segments[1] && sn.segments[1].x === tx && sn.segments[1].y === ty) return bad('neck');
+      const from = { x: h.x, y: h.y }; h.dir = d;
+      // 真正的历史方向继承：转向后从尾向头复制前段，不用几何重算。
+      const before = clone(sn.segments);
+      for (let i = sn.segments.length - 1; i >= 1; i--) Object.assign(sn.segments[i], { x: before[i - 1].x, y: before[i - 1].y, dir: before[i - 1].dir });
+      const next = extend(ctx, snakeId, [h.id], [{ owner: snakeId, x: tx, y: ty }]);
+      const result = enterHead(st, snakeId, tx, ty, d, next);
+      if (!result.ok) return result;
+      h = head(st, snakeId); h.x = tx; h.y = ty;
+      // 吞食可能改变朝向；没有吞食则保留本次蛇行面向。
+      record(st, cause === 'tail' ? 'npcWalks' : 'walk', { snakeId, dir: d, from, to: { x: tx, y: ty } });
+      return good();
+    });
+  }
+  function rigidMove(state, snakeId, d, ctx = context()) {
+    tick(ctx);
+    if (ctx.active.has(snakeId)) return bad('self-block');
+    return atomic(state, st => {
+      const old = clone(getSnake(st, snakeId).segments), dd = DIRS[d];
+      const destinations = old.map(s => ({ owner: snakeId, x: s.x + dd.x, y: s.y + dd.y }));
+      if (destinations.some(p => blockedTerrain(st, p.x, p.y) || reserved(ctx, p.x, p.y, snakeId))) return bad('rigid-wall');
+      const next = extend(ctx, snakeId, old.map(s => s.id), destinations);
+      // 移动依赖先完成；未通过的任一身体目标都会回滚整次异形推。
+      for (let i = old.length - 1; i >= 1; i--) {
+        const p = destinations[i], r = pushAt(st, p.x, p.y, d, next, snakeId);
+        if (!r.ok || !emptyCell(st, p.x, p.y, next, snakeId)) return r.ok ? bad('rigid-body-block') : r;
+      }
+      const r = enterHead(st, snakeId, destinations[0].x, destinations[0].y, d, next);
+      if (!r.ok) return r;
+      const sn = getSnake(st, snakeId);
+      for (const seg of sn.segments) {
+        const prev = old.find(o => o.id === seg.id);
+        if (prev) { seg.x = prev.x + dd.x; seg.y = prev.y + dd.y; }
+      }
+      record(st, 'rigidPushes', { snakeId, dir: d });
+      return good();
+    });
+  }
+  // 左/中/右相对于连接段的来向，而非把“中间”硬写成反方向。
+  function otherDirs(state, snakeId, end) {
+    const sn = getSnake(state, snakeId).segments;
+    const ep = end === 'head' ? sn[0] : sn[sn.length - 1];
+    const f = end === 'head' ? ep.dir : opp(ep.dir);
+    const neighbor = end === 'head' ? sn[1] : sn[sn.length - 2];
+    if (!neighbor) return [rightOf(f), leftOf(f)];
+    const toward = direction(ep, neighbor), middle = opp(toward);
+    if (f === rightOf(middle)) return [middle, leftOf(middle)];
+    if (f === leftOf(middle)) return [middle, rightOf(middle)];
+    if (f === middle) return [rightOf(middle), leftOf(middle)];
+    return [middle, rightOf(middle), leftOf(middle)].filter(d => d !== f);
+  }
+  function growthCandidates(state, snakeId) {
+    const segs = getSnake(state, snakeId).segments, h = segs[0].dir, t = opp(segs[segs.length - 1].dir);
+    const make = (end, dir, kind, rank) => ({ end, dir, kind, rank });
+    const to = otherDirs(state, snakeId, 'tail'), ho = otherDirs(state, snakeId, 'head');
+    return [make('tail', t, 'empty', 1), make('head', h, 'empty', 2), make('tail', t, 'push', 3), ...to.map(d => make('tail', d, 'empty', 4)), make('head', h, 'push', 5), ...ho.map(d => make('head', d, 'empty', 6)), ...to.map(d => make('tail', d, 'push', 7)), ...ho.map(d => make('head', d, 'push', 8))];
+  }
+  function extension(state, snakeId, cand) {
+    const a = getSnake(state, snakeId).segments, p = cand.end === 'head' ? a[0] : a[a.length - 1], d = DIRS[cand.dir];
+    return { x: p.x + d.x, y: p.y + d.y };
+  }
+  function normalGrowth(state, itemId, cand, mode) {
+    const heatIndex = state.heat.findIndex(h => h.id === itemId);
+    if (heatIndex < 0) return bad('missing-heat');
+    const item = state.heat[heatIndex], s = getSnake(state, item.snakeId), old = clone(s.segments), p = extension(state, s.id, cand);
+    if (!emptyCell(state, p.x, p.y)) return bad('growth-space');
+    const food = { ...item.box };
+    if (cand.end === 'head') {
+      const h = s.segments[0]; h.x = p.x; h.y = p.y; h.dir = cand.dir;
+      Object.assign(food, { x: old[0].x, y: old[0].y, dir: cand.dir });
+      s.segments.splice(1, 0, food);
+    } else if (old.length === 1) {
+      Object.assign(food, { x: p.x, y: p.y, dir: opp(cand.dir) }); s.segments.push(food);
+    } else {
+      Object.assign(food, { x: old[1].x, y: old[1].y, dir: old[1].dir });
+      for (let i = 1; i < old.length - 1; i++) Object.assign(s.segments[i], { x: old[i + 1].x, y: old[i + 1].y, dir: old[i + 1].dir });
+      Object.assign(s.segments[old.length - 1], { x: p.x, y: p.y, dir: opp(cand.dir) });
+      s.segments.splice(1, 0, food);
+    }
+    state.heat.splice(heatIndex, 1);
+    record(state, 'growths', { snakeId: s.id, end: cand.end, dir: cand.dir, rank: cand.rank, mode, boxId: food.id });
+    if (mode === 'reverse') record(state, 'reverseGrowths', { snakeId: s.id });
+    return good();
+  }
+  function tryGrowth(state, itemId, cand) {
+    const item = state.heat.find(h => h.id === itemId);
+    if (!item) return bad('missing-heat');
+    const p = extension(state, item.snakeId, cand);
+    if (emptyCell(state, p.x, p.y)) return atomic(state, st => normalGrowth(st, itemId, cand, 'empty'));
+    if (cand.kind === 'empty') return bad('not-empty');
+    const direct = atomic(state, st => {
+      const ctx = extend(context(), item.snakeId);
+      const result = pushAt(st, p.x, p.y, cand.dir, ctx, item.snakeId);
+      if (!result.ok || !emptyCell(st, p.x, p.y)) return bad('not-pushable');
+      return normalGrowth(st, itemId, cand, 'direct');
+    });
+    if (direct.ok) return direct;
+    return atomic(state, st => {
+      // 两段判定的第二段：刚性反推，再在平移后相应端部完成正常增长。
+      const result = rigidMove(st, item.snakeId, opp(cand.dir));
+      if (!result.ok) return result;
+      return normalGrowth(st, itemId, cand, 'reverse');
+    });
+  }
+  function growOnce(state, itemId) {
+    const item = state.heat.find(h => h.id === itemId);
+    if (!item) return false;
+    for (const cand of growthCandidates(state, item.snakeId)) if (tryGrowth(state, itemId, cand).ok) return true;
+    return false;
+  }
+  function processHeat(state) {
+    const attempted = new Set();
+    let remaining = Math.max(256, state.mass * 32);
+    while (remaining-- > 0) {
+      const item = state.heat.find(h => !attempted.has(h.id));
+      if (!item) return;
+      attempted.add(item.id);
+      growOnce(state, item.id); // 失败项留在原顺序，不阻塞其他头；新入队项本轮继续。
+    }
+    record(state, 'heatDeferred', { count: state.heat.length });
+  }
+  function isWon(state) {
+    const h = head(state);
+    return state.exits.some(e => {
+      const p = e.carrier ? getCarrierPosition(state, e.carrier) : e;
+      return p && h.x === p.x && h.y === p.y;
+    });
+  }
+  function step(state, d) {
+    if (!DIRS[d] || state.won) return { state, changed: false, moved: false, reason: 'inactive' };
+    const draft = clone(state); draft.events = [];
+    let result;
+    try {
+      result = snakeWalk(draft, draft.playerId, d);
+      if (!result.ok) {
+        if (result.turns && result.turns.length) {
+          const rotated = clone(state); rotated.events = [];
+          for (const t of result.turns) {
+            const s = getSnake(rotated, t.snakeId);
+            if (s && s.segments[0].dir !== t.dir) { s.segments[0].dir = t.dir; record(rotated, 'headTurns', t); }
+          }
+          if (rotated.events.length) { rotated.moves++; assertValid(rotated); return { state: rotated, changed: true, moved: false, reason: 'head-head' }; }
+        }
+        return { state, changed: false, moved: false, reason: result.reason };
+      }
+      processHeat(draft); draft.moves++; draft.won = isWon(draft); assertValid(draft);
+      return { state: draft, changed: true, moved: true, reason: '' };
+    } catch (e) {
+      return { state, changed: false, moved: false, reason: 'error', error: e.message };
+    }
+  }
+  function turn(state, d) { const result = step(state, d); if (result.changed) restore(state, result.state); return result.changed; }
+  const ENGINE = { DIRS, ORDER, opp, rightOf, leftOf, key, clone, snapshot, restore, parseLevel, getSnake, head, occupant, emptyCell, direction, mass, assertValid, getCarrierPosition, snakeWalk, rigidMove, otherDirs, growthCandidates, tryGrowth, growOnce, processHeat, step, turn };
+  if (typeof module === 'object' && module.exports) module.exports = ENGINE;
+  else root.SnakeEngine = ENGINE;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+// ===ENGINE END===
+</script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id), E = window.SnakeEngine, levels = window.SnakeBoxLevels;
+  function fail(message) { $('error').textContent = message; $('error').style.display = 'block'; }
+  if (!E || !Array.isArray(levels) || !levels.length) { fail('未找到 levels.js 关卡数据。请把 HTML 与 levels.js 保持在同一文件夹，再双击 HTML 或运行 python deploy.py。'); return; }
+  let cur = 0, state, undoStack = [], shownHints = 0, demoStep = null;
+  const solved = new Set(), arrows = { U: '↑', R: '→', D: '↓', L: '←' }, boldArrows = { U: '▲', R: '▶', D: '▼', L: '◀' };
+  const messages = { neck: '不能原地掉头朝自己的下一节走。', wall: '被墙挡住：本步已完整撤回。', 'rigid-wall': '蛇箱整体被墙挡住。', 'head-head': '蛇头不能吃蛇头，但会发生转向。', reserved: '推动相互阻挡，本步未移动。' };
+  function sequence(lv) { return (lv.solution || '').replace(/[^UDLR]/g, ''); }
+  function loadLevel(index, demo = false) {
+    try {
+      cur = index; state = E.parseLevel(levels[cur]); undoStack = []; shownHints = 0; demoStep = demo ? 0 : null;
+      $('demo').open = demo; $('error').style.display = 'none'; render();
+      $('event-log').textContent = '方向键 / WASD 移动，也可用下面的触屏方向键。';
+    } catch (err) { fail(`关卡载入失败：${err.message}`); }
+  }
+  function renderTabs() {
+    $('tabs').replaceChildren();
+    levels.forEach((lv, index) => {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.level = index + 1;
+      b.textContent = `${index + 1} · ${lv.title}`; b.className = (cur === index ? 'active ' : '') + (solved.has(lv.id) ? 'solved' : '');
+      b.setAttribute('aria-current', cur === index ? 'step' : 'false'); b.onclick = () => loadLevel(index); $('tabs').appendChild(b);
+    });
+    $('progress').textContent = `${solved.size} / ${levels.length} 已通关`;
+  }
+  function render() {
+    const lv = levels[cur], player = E.getSnake(state);
+    $('level-title').textContent = `第 ${cur + 1} 关 · ${lv.title}`;
+    $('difficulty').textContent = lv.difficulty || '挑战'; $('description').textContent = lv.description;
+    $('mechanics').replaceChildren();
+    (lv.mechanics || []).forEach(label => { const tag = document.createElement('span'); tag.className = 'chip'; tag.textContent = label; $('mechanics').appendChild(tag); });
+    $('st-moves').textContent = `步数 ${state.moves}`; $('st-len').textContent = `你的长度 ${player.segments.length}`;
+    $('st-npcs').textContent = `蛇箱 ${state.snakes.length - 1}`; $('st-red').textContent = state.heat.length ? `🥵 待生长 ${state.heat.length}` : '';
+    $('theme').textContent = (lv.expected || {}).selfCuts ? `自咬练习 ${state.stats.selfCuts ? '✓ 已完成' : '尚未触发（非通关门槛）'}` : state.stats.npcWalks ? `蛇箱蛇行 ${state.stats.npcWalks} 次` : '';
+    const cellSize = Math.max(22, Math.min(43, Math.floor((Math.min(window.innerWidth - 42, 840) - 14) / state.width) - 2));
+    $('board').style.setProperty('--cell', `${cellSize}px`); $('board').style.gridTemplateColumns = `repeat(${state.width}, var(--cell))`;
+    $('board').replaceChildren();
+    for (let y = 0; y < state.height; y++) for (let x = 0; x < state.width; x++) {
+      const cell = document.createElement('div'); cell.className = 'cell'; cell.dataset.x = x; cell.dataset.y = y;
+      if (state.walls.includes(E.key(x, y))) { cell.classList.add('wall'); cell.textContent = '🧱'; cell.title = `墙 (${x},${y})`; }
+      else {
+        const exit = state.exits.some(e => e.x === x && e.y === y), o = E.occupant(state, x, y);
+        if (exit) { cell.classList.add('exit'); const bg = document.createElement('span'); bg.className = 'bg'; bg.textContent = '🎯'; cell.appendChild(bg); }
+        if (o) {
+          const fg = document.createElement('span'); fg.className = 'fg';
+          if (o.kind === 'box') { fg.textContent = '📦'; cell.title = `普通箱子 (${x},${y})`; }
+          else {
+            const s = E.getSnake(state, o.owner), seg = s.segments[o.index], hot = state.heat.filter(h => h.snakeId === s.id).length;
+            if (!s.player) cell.classList.add('npc');
+            fg.textContent = o.kind === 'head' ? (hot ? '🥵' : s.player ? '🟢' : '🟠') : s.player ? '🟩' : '🟨';
+            if (o.kind === 'head' && hot) cell.classList.add('hot');
+            const ar = document.createElement('span'); ar.className = 'arr'; ar.textContent = boldArrows[seg.dir]; cell.appendChild(ar);
+            if (o.index === s.segments.length - 1 && o.index) { const tag = document.createElement('span'); tag.className = 'tail'; tag.textContent = '尾'; cell.appendChild(tag); }
+            cell.title = `${s.name} · ${o.kind === 'head' ? '蛇头' : o.index === s.segments.length - 1 ? '蛇尾' : '身体'} ${arrows[seg.dir]} (${x},${y})`;
+          }
+          cell.appendChild(fg);
+        } else cell.title = exit ? `出口 (${x},${y})` : `地板 (${x},${y})`;
+        if (state.events.some(e => e.type === 'selfCuts' && e.x === x && e.y === y)) cell.classList.add('cut-flash');
+      }
+      $('board').appendChild(cell);
+    }
+    $('btn-undo').disabled = !undoStack.length;
+    $('hints').replaceChildren();
+    (lv.hints || []).slice(0, shownHints).forEach(h => { const li = document.createElement('li'); li.textContent = h; $('hints').appendChild(li); });
+    $('btn-hint').disabled = shownHints >= (lv.hints || []).length;
+    $('solution').textContent = sequence(lv).split('').map(d => arrows[d]).join(' ');
+    $('btn-demo-step').disabled = demoStep === null || demoStep >= sequence(lv).length || state.won;
+    $('demo-state').textContent = demoStep === null ? '' : `${demoStep} / ${sequence(lv).length} 步`;
+    $('win-overlay').classList.toggle('show', state.won);
+    if (state.won) {
+      solved.add(lv.id); $('win-txt').textContent = `🎉 ${state.moves} 步通关`;
+      $('win-detail').textContent = state.stats.selfCuts ? `自咬 ${state.stats.selfCuts} 次 · 散落 ${state.stats.detached} 节` : `蛇箱蛇行 ${state.stats.npcWalks} 次 · 吞食 ${state.stats.eats} 次`;
+      $('btn-next').textContent = cur + 1 < levels.length ? '下一关 (Enter)' : solved.size === levels.length ? '全部通关 · 从第一关再玩' : '返回第一关继续挑战';
+    }
+    renderTabs();
+  }
+  function eventText() {
+    const texts = [];
+    for (const e of state.events) {
+      if (e.type === 'selfCuts') texts.push(`✂ 自咬切断，${e.detached} 节尾部变回箱子`);
+      else if (e.type === 'cuts' && e.eaterId !== e.snakeId) texts.push(`✂ 咬断蛇箱，散落 ${e.detached} 节`);
+      else if (e.type === 'npcWalks') texts.push(`蛇箱按头方向 ${arrows[e.dir]} 蛇行`);
+      else if (e.type === 'rigidPushes') texts.push(`蛇箱整体 ${arrows[e.dir]} 平移`);
+      else if (e.type === 'eats') texts.push(`${E.getSnake(state, e.snakeId).name}吞食 → 红温入队`);
+      else if (e.type === 'growths') texts.push(`${E.getSnake(state, e.snakeId).name}${e.mode === 'reverse' ? '反推后' : ''}${e.end === 'head' ? '头端' : '尾端'} ${arrows[e.dir]} ${[4,6,7,8].includes(e.rank) ? '侧向' : ''}生长`);
+      else if (e.type === 'pushes') texts.push('📦 推动');
+      else if (e.type === 'headTurns') texts.push('蛇头相遇转向，不能吞食');
+    }
+    return [...new Set(texts)].join(' · ') || '蛇行一步。';
+  }
+  function move(d, fromDemo = false) {
+    if (!state || state.won) return;
+    const before = E.snapshot(state), result = E.step(state, d);
+    if (result.error) { fail(result.error); return; }
+    if (result.changed) { undoStack.push(before); state = result.state; if (fromDemo) demoStep++; else demoStep = null; render(); $('event-log').textContent = eventText(); }
+    else { $('event-log').textContent = messages[result.reason] || '这个方向目前无法移动，棋盘未改变。'; if (fromDemo) fail(`示范路线在第 ${demoStep + 1} 步被阻挡，请重开或检查关卡数据。`); }
+  }
+  function undo() { if (!undoStack.length) return; E.restore(state, undoStack.pop()); demoStep = null; render(); $('event-log').textContent = '已撤销整个回合（所有蛇与红温队列一起还原）。'; }
+  function next() { if (state && state.won) loadLevel((cur + 1) % levels.length); }
+  $('btn-undo').onclick = undo; $('btn-restart').onclick = () => loadLevel(cur); $('btn-next').onclick = next;
+  $('btn-hint').onclick = () => { shownHints++; render(); };
+  $('btn-demo-start').onclick = () => loadLevel(cur, true);
+  $('btn-demo-step').onclick = () => { if (demoStep !== null) move(sequence(levels[cur])[demoStep], true); };
+  document.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => move(b.dataset.dir));
+  const keys = { ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R', w: 'U', a: 'L', s: 'D', d: 'R' };
+  document.addEventListener('keydown', ev => {
+    if (ev.ctrlKey || ev.altKey || ev.metaKey || /INPUT|TEXTAREA|SELECT/.test(ev.target.tagName)) return;
+    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    if (keys[k]) { ev.preventDefault(); move(keys[k]); }
+    else if (k === 'z' || k === 'u') { ev.preventDefault(); undo(); }
+    else if (k === 'r') { ev.preventDefault(); loadLevel(cur); }
+    else if (k === 'Enter') { if (state.won) { ev.preventDefault(); next(); } }
+    else if (/^[1-9]$/.test(k) && Number(k) <= levels.length) loadLevel(Number(k) - 1);
+  });
+  window.addEventListener('resize', () => { if (state) render(); });
+  // 仅只读调试信息，自动化测试可检查实际 UI 状态。
+  window.SnakeBoxApp = { getState: () => E.clone(state), level: () => cur, loadLevel };
+  loadLevel(0);
+})();
+</script>
+</body>
+</html>
