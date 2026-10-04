@@ -149,7 +149,7 @@
       const id = def.id || `npc-${i + 1}`, positions = def.segments || def.body;
       if (!positions || !positions.length) throw new Error('NPC 蛇必须至少有一个蛇头。');
       const segments = positions.map((p, j) => ({ id: `${id}:${j}`, x: Array.isArray(p) ? p[0] : p.x, y: Array.isArray(p) ? p[1] : p.y, dir: Array.isArray(p) ? p[2] : p.dir, entry: Array.isArray(p) ? null : p.entry || null }));
-      for (let j = 0; j < segments.length; j++) segments[j].dir = segments[j].dir || (j ? direction(segments[j], segments[j - 1]) : def.dir || 'R');
+      for (let j = 0; j < segments.length; j++) segments[j].dir = segments[j].dir || (j + 1 < segments.length ? direction(segments[j + 1], segments[j]) : direction(segments[j], segments[j - 1]) || def.dir || 'R');
       state.snakes.push({ id, name: def.name || `蛇箱 ${i + 1}`, player: false, segments });
     }
     state.mass = mass(state);
@@ -267,14 +267,14 @@
       let sn = getSnake(st, snakeId), h = sn.segments[0];
       const tx = h.x + DIRS[d].x, ty = h.y + DIRS[d].y;
       if (sn.segments[1] && sn.segments[1].x === tx && sn.segments[1].y === ty) return bad('neck');
-      const from = { x: h.x, y: h.y }; h.dir = d;
+      const from = { x: h.x, y: h.y };
       // 真正的历史方向继承：转向后从尾向头复制前段，不用几何重算。
       const before = clone(sn.segments);
       for (let i = sn.segments.length - 1; i >= 1; i--) Object.assign(sn.segments[i], { x: before[i - 1].x, y: before[i - 1].y, dir: before[i - 1].dir });
       const next = extend(ctx, snakeId, [h.id], [{ owner: snakeId, x: tx, y: ty }]);
       const result = enterHead(st, snakeId, tx, ty, d, next);
       if (!result.ok) return result;
-      h = head(st, snakeId); h.x = tx; h.y = ty;
+      h = head(st, snakeId); h.x = tx; h.y = ty; h.dir = d;
       // 吞食可能改变朝向；没有吞食则保留本次蛇行面向。
       record(st, cause === 'tail' ? 'npcWalks' : 'walk', { snakeId, dir: d, from, to: { x: tx, y: ty } });
       return good();
